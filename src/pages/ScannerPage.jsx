@@ -94,7 +94,7 @@ export default function ScannerPage({ onBack }) {
     s.id = 'gmaps-script'
     s.src = `https://maps.googleapis.com/maps/api/js?key=${k}&libraries=places&callback=__mapsReady`
     s.async = true
-    s.onerror = () => setError('Failed to load Maps SDK. Enable Maps JavaScript API + Places API in Google Cloud Console.')
+    s.onerror = () => setError('Failed to load Maps SDK. Make sure: 1) Maps JavaScript API is enabled, 2) Places API is enabled, 3) Your API key allows kangtaoo.com as a referrer.')
     window.__mapsReady = () => {
       const el = document.getElementById('map-container')
       const map = new window.google.maps.Map(el, { center: { lat: 1.55, lng: 110.34 }, zoom: 12 })
@@ -107,10 +107,13 @@ export default function ScannerPage({ onBack }) {
 
   function textSearch(q, pageToken) {
     return new Promise((res, rej) => {
+      // Timeout after 15 seconds
+      const timer = setTimeout(() => rej(new Error('Search timed out. Check your Google Places API key restrictions — make sure the domain kangtaoo.com is allowed, or set to unrestricted.')), 15000)
       const req = pageToken ? { query: q, pageToken } : { query: q }
       svcRef.current.textSearch(req, (results, status, pagination) => {
+        clearTimeout(timer)
         if (status === 'OK' || status === 'ZERO_RESULTS') res({ results: results || [], pagination })
-        else rej(new Error('Places error: ' + status))
+        else rej(new Error('Places error: ' + status + '. Check that Maps JavaScript API and Places API are enabled in Google Cloud Console.'))
       })
     })
   }
