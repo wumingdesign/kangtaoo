@@ -35,29 +35,23 @@ function buildSigs(p) {
 }
 
 function shapePlace(p, ind, idx) {
-  const website = p.websiteURI || null
-  const phone = p.nationalPhoneNumber || ''
-  const rating = p.rating || null
-  const reviews = p.userRatingCount || null
-  const types = (p.types || [])
-    .filter(t => !['point_of_interest', 'establishment', 'premise', 'geocode'].includes(t))
-    .map(t => t.replace(/_/g, ' '))
-    .slice(0, 2).join(', ') || ind
-
   return {
     idx,
-    name: p.displayName || '',
-    type: types,
-    address: p.formattedAddress || '',
-    phone,
-    website,
-    mapsUrl: p.googleMapsURI || `https://www.google.com/maps/search/?q=${encodeURIComponent(p.displayName || '')}`,
-    temp: scoreLead({ website, rating, user_ratings_total: reviews }),
-    sigs: buildSigs({ website, rating, user_ratings_total: reviews }),
-    rating,
-    reviews,
+    name: p.name || '',
+    type: (p.types || [])
+      .filter(t => !['point_of_interest', 'establishment', 'premise', 'geocode'].includes(t))
+      .map(t => t.replace(/_/g, ' '))
+      .slice(0, 2).join(', ') || ind,
+    address: p.formatted_address || p.vicinity || '',
+    phone: '',
+    website: undefined,
+    mapsUrl: `https://www.google.com/maps/place/?q=place_id:${p.place_id}`,
+    temp: ((p.rating && p.rating < 3.5) || ((p.user_ratings_total || 999) < 15)) ? 'warm' : 'cold',
+    sigs: [(p.user_ratings_total || 0) < 10 ? 'Few online reviews' : ((p.user_ratings_total || 0) > 100 ? 'High traffic' : 'Active listing'), 'Checking website…'],
+    rating: p.rating || null,
+    reviews: p.user_ratings_total || null,
     hook: 'Generating hook…',
-    pid: p.id,
+    pid: p.place_id,
   }
 }
 
@@ -96,17 +90,15 @@ export default function ScannerPage({ onBack }) {
     setError('')
     const old = document.getElementById('gmaps-script')
     if (old) old.remove()
-    // Use the new Maps JS API loader with async + v=beta for new Places API
     const s = document.createElement('script')
     s.id = 'gmaps-script'
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${k}&libraries=places&v=beta&callback=__mapsReady`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${k}&libraries=places&callback=__mapsReady`
     s.async = true
     s.defer = true
-    s.onerror = () => setError('Failed to load Maps SDK. Make sure: 1) Maps JavaScript API is enabled, 2) Places API is enabled, 3) Your API key allows kangtaoo.com as a referrer.')
+    s.onerror = () => setError('Failed to load Maps SDK. Make sure Maps JavaScript API and Places API are enabled in Google Cloud Console.')
     window.__mapsReady = () => {
       const el = document.getElementById('map-container')
       const map = new window.google.maps.Map(el, { center: { lat: 1.55, lng: 110.34 }, zoom: 12 })
-      // Use legacy PlacesService but suppress deprecation by checking for new API
       svcRef.current = new window.google.maps.places.PlacesService(map)
       setApiKeySet(true)
       setShowKeyInput(false)
@@ -114,20 +106,24 @@ export default function ScannerPage({ onBack }) {
     document.head.appendChild(s)
   }
 
-  async function textSearch(q) {
-    // Use new Places API (replaces deprecated PlacesService.textSearch)
-    const { places } = await window.google.maps.places.Place.searchByText({
-      textQuery: q,
-      fields: ['displayName', 'formattedAddress', 'location', 'types', 'rating', 'userRatingCount', 'id', 'websiteURI', 'nationalPhoneNumber', 'googleMapsURI'],
-      maxResultCount: 20,
+  function textSearch(q) {
+    return new Promise((res, rej) => {
+      const timer = setTimeout(() => rej(new Error('Search timed out. Check your API key and that Places API is enabled.')), 15000)
+      svcRef.current.textSearch({ query: q }, (results, status) => {
+        clearTimeout(timer)
+        if (status === 'OK' || status === 'ZERO_RESULTS') res(results || [])
+        else rej(new Error('Places error: ' + status))
+      })
     })
-    return places || []
   }
 
-  async function getDetail(placeId) {
-    // Details are already fetched in searchByText with the fields above
-    // This is a no-op now — all data comes from textSearch
-    return null
+  function getDetail(pid) {
+    return new Promise(res => {
+      svcRef.current.getDetails(
+        { placeId: pid, fields: ['website', 'formatted_phone_number'] },
+        (r, s) => res(s === 'OK' ? r : null)
+      )
+    })
   }
 
   async function scan() {
@@ -150,15 +146,16 @@ export default function ScannerPage({ onBack }) {
     const q = company.trim() ? `${company.trim()} ${location}` : `${industry} in ${location}`
 
     try {
-      const places = await textSearch(q)
-      if (!places.length) { setError('No results found. Try a different search term.'); return }
+      const results = await textSearch(q)
+      if (!results.length) { setError('No results found. Try a different search term.'); return }
 
       clearInterval(ivRef.current)
       setScanning(false)
 
-      const shaped = places.map((p, i) => shapePlace(p, industry, i))
+      const shaped = results.slice(0, 12).map((p, i) => shapePlace(p, industry, i))
       leadsRef.current = shaped
       setAllLeads([...shaped])
+      enrichBatch(shaped)
       genHooks(shaped)
 
     } catch (e) {
@@ -169,6 +166,34 @@ export default function ScannerPage({ onBack }) {
   }
 
 
+
+  function enrichBatch(batch) {
+    batch.forEach(lead => {
+      getDetail(lead.pid).then(d => {
+        const updated = leadsRef.current.map(l => {
+          if (l.idx !== lead.idx) return l
+          const phone = d?.formatted_phone_number || ''
+          const website = d?.website || null
+          return {
+            ...l,
+            phone,
+            website,
+            temp: scoreLead({ website, rating: l.rating, user_ratings_total: l.reviews }),
+            sigs: buildSigs({ website, rating: l.rating, user_ratings_total: l.reviews }),
+          }
+        })
+        leadsRef.current = updated
+        setAllLeads([...updated])
+      }).catch(() => {
+        const updated = leadsRef.current.map(l => {
+          if (l.idx !== lead.idx) return l
+          return { ...l, website: null, temp: 'hot', sigs: ['No website found', 'Few online reviews'] }
+        })
+        leadsRef.current = updated
+        setAllLeads([...updated])
+      })
+    })
+  }
 
   async function genHooks(batch) {
     if (!batch.length) return
