@@ -4,19 +4,23 @@ const DEFAULT_BRAND = {
   companyName: 'WuMing',
   tagline: 'Web Development',
   yourName: 'Alex',
+  jobTitle: 'Web Developer',
   email: '',
   phone: '',
   whatsapp: '',
   location: 'Kuching, Sarawak',
   primaryColor: '#0A2540',
   accentColor: '#00D4FF',
-  logo: null, // base64
+  logo: null,
+  logoAlign: 'left',
+  buttonAlign: 'left',
 }
 
 function buildEmailHTML({ pitch, brand, lead }) {
   const {
-    companyName, tagline, yourName, email, phone,
+    companyName, tagline, yourName, jobTitle, email, phone,
     whatsapp, location: loc, primaryColor, accentColor, logo,
+    logoAlign = 'left', buttonAlign = 'left',
   } = brand
 
   const waLink = whatsapp
@@ -42,7 +46,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
     <td style="background:${primaryColor};padding:28px 36px;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td>
+          <td align="${logoAlign}">
             ${logo
               ? `<img src="${logo}" alt="${companyName} logo" style="height:48px;max-width:160px;object-fit:contain;display:block;"/>`
               : `<div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">${companyName}</div>`
@@ -70,19 +74,21 @@ function buildEmailHTML({ pitch, brand, lead }) {
       }).join('')}
 
       <!-- CTA -->
-      <table cellpadding="0" cellspacing="0" style="margin-top:28px;">
+      <table cellpadding="0" cellspacing="0" style="margin-top:28px;width:100%;">
         <tr>
-          ${waLink
-            ? `<td><a href="${waLink}" style="display:inline-block;background:${accentColor};color:#0A0F1E;text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;">Chat on WhatsApp →</a></td>`
-            : `<td><a href="mailto:${email}" style="display:inline-block;background:${accentColor};color:#0A0F1E;text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;">Get in Touch →</a></td>`
-          }
+          <td align="${buttonAlign}">
+            ${waLink
+              ? `<a href="${waLink}" style="display:inline-block;background:${accentColor};color:#0A0F1E;text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;">Chat on WhatsApp →</a>`
+              : `<a href="mailto:${email}" style="display:inline-block;background:${accentColor};color:#0A0F1E;text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:6px;">Get in Touch →</a>`
+            }
+          </td>
         </tr>
       </table>
 
       <!-- Sign off -->
       <p style="margin:28px 0 0;font-size:14px;color:#555;">Warm regards,</p>
       <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#1a1a2e;">${yourName}</p>
-      <p style="margin:2px 0 0;font-size:13px;color:#888;">Freelance Web Developer — ${companyName}</p>
+      <p style="margin:2px 0 0;font-size:13px;color:#888;">${brand.jobTitle || 'Web Developer'} — ${companyName}</p>
     </td>
   </tr>
 
@@ -113,6 +119,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
 
 export default function PitchModal({ lead, location, onClose }) {
   const [pitch, setPitch] = useState('')
+  const [htmlContent, setHtmlContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('preview') // 'preview' | 'html' | 'text' | 'brand'
   const [brand, setBrand] = useState(() => {
@@ -123,6 +130,9 @@ export default function PitchModal({ lead, location, onClose }) {
   const logoInputRef = useRef(null)
 
   useEffect(() => { fetchPitch() }, [lead])
+  useEffect(() => {
+    if (!loading && pitch) setHtmlContent(buildEmailHTML({ pitch, brand, lead }))
+  }, [pitch, brand, loading])
 
   function saveBrand(updates) {
     const next = { ...brand, ...updates }
@@ -155,6 +165,7 @@ Rules:
       })
       const data = await res.json()
       setPitch(data.text?.trim() || 'Error generating pitch.')
+      setHtmlContent('') // will rebuild via useEffect
     } catch {
       setPitch('Error generating pitch. Please try again.')
     } finally {
@@ -171,18 +182,13 @@ Rules:
   }
 
   function copyContent() {
-    const text = tab === 'html'
-      ? buildEmailHTML({ pitch, brand, lead })
-      : tab === 'text'
-        ? pitch
-        : buildEmailHTML({ pitch, brand, lead })
+    const text = tab === 'text' ? pitch : htmlContent
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
   }
 
-  const html = !loading ? buildEmailHTML({ pitch, brand, lead }) : ''
 
   const tabStyle = (t) => ({
     background: tab === t ? 'var(--border)' : 'transparent',
@@ -213,7 +219,7 @@ Rules:
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}
     >
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 760, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 1000, maxHeight: '95vh', display: 'flex', flexDirection: 'column' }}>
 
         {/* Modal header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 24px 0' }}>
@@ -243,17 +249,26 @@ Rules:
           ) : tab === 'preview' ? (
             <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden' }}>
               <iframe
-                srcDoc={html}
-                style={{ width: '100%', height: 520, border: 'none', borderRadius: 8 }}
+                srcDoc={htmlContent}
+                style={{ width: '100%', height: 640, border: 'none', borderRadius: 8 }}
                 title="Email preview"
               />
             </div>
           ) : tab === 'html' ? (
-            <textarea
-              value={html}
-              readOnly
-              style={{ width: '100%', height: 400, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, background: '#111827', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--muted)', padding: 12, resize: 'vertical' }}
-            />
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Edit HTML directly — changes show in Preview tab</div>
+                <button onClick={() => setHtmlContent(buildEmailHTML({ pitch, brand, lead }))}
+                  style={{ fontSize: 11, color: 'var(--cyan)', background: 'transparent', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>
+                  ↺ Reset
+                </button>
+              </div>
+              <textarea
+                value={htmlContent}
+                onChange={e => setHtmlContent(e.target.value)}
+                style={{ width: '100%', height: 540, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, background: '#111827', border: '1px solid var(--border)', borderRadius: 6, color: '#F0F4FF', padding: 12, resize: 'vertical', outline: 'none' }}
+              />
+            </div>
           ) : tab === 'text' ? (
             <textarea
               value={pitch}
@@ -292,10 +307,32 @@ Rules:
                 </div>
               </div>
 
+              {/* Alignment controls */}
+              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {[['Logo Alignment', 'logoAlign'], ['Button Alignment', 'buttonAlign']].map(([label, key]) => (
+                  <div key={key}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {['left', 'center', 'right'].map(align => (
+                        <button key={align} onClick={() => saveBrand({ [key]: align })}
+                          style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 500, borderRadius: 5, cursor: 'pointer', border: '1px solid', transition: 'all 0.15s',
+                            background: brand[key] === align ? 'var(--cyan)' : 'var(--bg2)',
+                            color: brand[key] === align ? 'var(--bg)' : 'var(--muted)',
+                            borderColor: brand[key] === align ? 'var(--cyan)' : 'var(--border)',
+                          }}>
+                          {align === 'left' ? '⬅ Left' : align === 'center' ? '↔ Center' : 'Right ➡'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               {[
                 ['Company Name', 'companyName', 'e.g. WuMing'],
                 ['Tagline', 'tagline', 'e.g. Web Development'],
                 ['Your Name', 'yourName', 'e.g. Alex'],
+                ['Job Title', 'jobTitle', 'e.g. Web Developer, Director'],
                 ['Your Location', 'location', 'e.g. Kuching, Sarawak'],
                 ['Email', 'email', 'your@email.com'],
                 ['Phone', 'phone', 'e.g. 016-123 4567'],
