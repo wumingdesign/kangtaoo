@@ -14,13 +14,14 @@ const DEFAULT_BRAND = {
   logo: null,
   logoAlign: 'left',
   buttonAlign: 'left',
+  footerAlign: 'left',
 }
 
 function buildEmailHTML({ pitch, brand, lead }) {
   const {
     companyName, tagline, yourName, jobTitle, email, phone,
     whatsapp, location: loc, primaryColor, accentColor, logo,
-    logoAlign = 'left', buttonAlign = 'left',
+    logoAlign = 'left', buttonAlign = 'left', footerAlign = 'left',
   } = brand
 
   const waLink = whatsapp
@@ -88,7 +89,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
       <!-- Sign off -->
       <p style="margin:28px 0 0;font-size:14px;color:#555;">Warm regards,</p>
       <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#1a1a2e;">${yourName}</p>
-      <p style="margin:2px 0 0;font-size:13px;color:#888;">${brand.jobTitle || 'Web Developer'} — ${companyName}</p>
+      <p style="margin:2px 0 0;font-size:13px;color:#888;">${brand.jobTitle || 'Web Developer'}</p>
     </td>
   </tr>
 
@@ -100,7 +101,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
     <td style="padding:20px 36px 28px;background:#fafbfc;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="font-size:12px;color:#999;line-height:1.6;">
+          <td style="font-size:12px;color:#999;line-height:1.6;text-align:${footerAlign};">
             ${companyName} · ${loc}
             ${email ? ` · <a href="mailto:${email}" style="color:#999;">${email}</a>` : ''}
             ${phone ? ` · ${phone}` : ''}
@@ -130,9 +131,11 @@ export default function PitchModal({ lead, location, onClose }) {
   const logoInputRef = useRef(null)
 
   useEffect(() => { fetchPitch() }, [lead])
+  // Only auto-build HTML when pitch is freshly generated, NOT on brand changes
+  // Brand tab has a live "Apply brand" button to avoid overwriting user edits
   useEffect(() => {
     if (!loading && pitch) setHtmlContent(buildEmailHTML({ pitch, brand, lead }))
-  }, [pitch, brand, loading])
+  }, [pitch, loading])
 
   function saveBrand(updates) {
     const next = { ...brand, ...updates }
@@ -308,8 +311,8 @@ Rules:
               </div>
 
               {/* Alignment controls */}
-              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {[['Logo Alignment', 'logoAlign'], ['Button Alignment', 'buttonAlign']].map(([label, key]) => (
+              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                {[['Logo Alignment', 'logoAlign'], ['Button Alignment', 'buttonAlign'], ['Footer Alignment', 'footerAlign']].map(([label, key]) => (
                   <div key={key}>
                     <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -367,8 +370,12 @@ Rules:
                 </div>
               </div>
 
-              <div style={{ gridColumn: '1 / -1', background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 6, padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>
-                💾 Brand settings are saved automatically in your browser. Switch to <strong style={{ color: 'var(--text)' }}>Preview</strong> tab to see changes live.
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 6, padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>
+                <span>💾 Brand settings auto-save. Click Apply to update the preview with your latest changes.</span>
+                <button onClick={() => { setHtmlContent(buildEmailHTML({ pitch, brand, lead })); setTab('preview'); }}
+                  style={{ background: 'var(--cyan)', color: 'var(--bg)', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 700, padding: '7px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  Apply & Preview
+                </button>
               </div>
             </div>
           )}
