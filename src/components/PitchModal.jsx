@@ -29,7 +29,10 @@ const DEFAULT_MOCKUP = {
   tagline: 'Professional · Trusted · Experienced',
   cta1: 'Get Free Consultation', cta2: 'Our Services →',
   bgColor: '#0A2540', bgColor2: '#00D4FF', bgImage: null,
+  bgOverlayOpacity: 0.55,
   navBg: '#0A2540', accentColor: '#00D4FF',
+  domain: 'yourbusiness.com.my',
+  navLogoType: 'text', navLogoText: '', navLogoImg: null,
   showServices: true, services: ['Legal Advice', 'Documentation', 'Representation', 'Consultation', 'Contact Us'],
   heroFont: 'Arial', headlineColor: '#ffffff', subColor: '#00D4FF',
 }
@@ -43,7 +46,7 @@ function getGoogleFontLink(fontFamily) {
 // Draw mockup on canvas and return base64 PNG
 async function renderMockupToBase64(lead, mockupCfg, brand) {
   return new Promise((resolve) => {
-    const W = 560, H = 315
+    const W = 560, H = 420
     const canvas = document.createElement('canvas')
     canvas.width = W * 2; canvas.height = H * 2 // 2x for retina
     const ctx = canvas.getContext('2d')
@@ -64,26 +67,27 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     ctx.fillStyle = '#fff'; ctx.beginPath()
     ctx.roundRect(56, 6, W - 70, 16, 8); ctx.fill()
     ctx.fillStyle = '#999'; ctx.font = '8px Arial'; ctx.textAlign = 'center'
-    ctx.fillText(`www.${bizName.toLowerCase().replace(/[^a-z]/g,'')}.com.my`, W / 2, 17)
+    ctx.fillText(cfg.domain || `www.${bizName.toLowerCase().replace(/[^a-z]/g,'')}.com.my`, W / 2, 17)
 
     // Nav
     ctx.fillStyle = navBg
-    ctx.fillRect(0, 28, W, 36)
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left'
-    ctx.fillText(bizName.slice(0, 16), 18, 50)
-    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = '8px Arial'
-    ;['Home', 'About', 'Services'].forEach((item, i) => ctx.fillText(item, 340 + i * 45, 50))
-    // CTA nav button
+    ctx.fillRect(0, 28, W, 40)
+    // Nav logo text or business name
+    const navLogo = cfg.navLogoText || bizName.slice(0, 18)
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left'
+    ctx.fillText(navLogo, 18, 53)
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = '9px Arial'
+    ;['Home', 'About', 'Services'].forEach((item, i) => ctx.fillText(item, 340 + i * 50, 53))
     ctx.fillStyle = accentColor; ctx.beginPath()
-    ctx.roundRect(472, 38, 72, 18, 3); ctx.fill()
-    ctx.fillStyle = navBg; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'
-    ctx.fillText('Contact Us', 508, 50)
+    ctx.roundRect(485, 38, 60, 22, 3); ctx.fill()
+    ctx.fillStyle = navBg; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'
+    ctx.fillText('Contact Us', 515, 53)
 
-    // Hero background
+    // Hero background (starts at 68 = 28 browser + 40 nav)
     if (cfg.bgImage) {
       const img = new window.Image()
       img.onload = () => {
-        ctx.drawImage(img, 0, 64, W, 184)
+        ctx.drawImage(img, 0, 68, W, 272)
         // overlay
         ctx.fillStyle = bgColor + 'cc'
         ctx.fillRect(0, 64, W, 130)
@@ -100,59 +104,55 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     }
 
     function drawBgGradient() {
-      const grad = ctx.createLinearGradient(0, 64, W, 248)
+      const grad = ctx.createLinearGradient(0, 68, W, 340)
       grad.addColorStop(0, bgColor)
-      grad.addColorStop(1, bgColor2 + '33')
+      grad.addColorStop(1, bgColor2 + '22')
       ctx.fillStyle = grad
-      ctx.fillRect(0, 64, W, 184)
+      ctx.fillRect(0, 68, W, 272)
       // Decorative circles
-      ctx.fillStyle = accentColor + '15'
-      ctx.beginPath(); ctx.arc(W - 80, 140, 75, 0, Math.PI * 2); ctx.fill()
-      ctx.fillStyle = accentColor + '20'
-      ctx.beginPath(); ctx.arc(W - 50, 100, 45, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = accentColor + '12'
+      ctx.beginPath(); ctx.arc(W - 60, 180, 100, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = accentColor + '18'
+      ctx.beginPath(); ctx.arc(W - 30, 120, 60, 0, Math.PI * 2); ctx.fill()
     }
 
     function drawHeroContent() {
-      ctx.fillStyle = headlineColor; ctx.font = `bold 18px ${cfg.heroFont}`; ctx.textAlign = 'left'
-      ctx.fillText(cfg.headline.slice(0, 28), 28, 96)
-      ctx.fillStyle = subColor; ctx.font = `bold 15px ${cfg.heroFont}`
-      ctx.fillText(cfg.subheadline.slice(0, 30), 28, 116)
-      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `9px ${cfg.heroFont}`
-      ctx.fillText(cfg.tagline.slice(0, 40), 28, 132)
+      const startY = 130
+      ctx.fillStyle = headlineColor; ctx.font = `bold 26px ${cfg.heroFont}`; ctx.textAlign = 'left'
+      ctx.fillText(cfg.headline.slice(0, 28), 36, startY)
+      ctx.fillStyle = subColor; ctx.font = `bold 22px ${cfg.heroFont}`
+      ctx.fillText(cfg.subheadline.slice(0, 30), 36, startY + 32)
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `12px ${cfg.heroFont}`
+      ctx.fillText(cfg.tagline.slice(0, 50), 36, startY + 58)
       // CTA buttons
       ctx.fillStyle = accentColor; ctx.beginPath()
-      ctx.roundRect(28, 140, 110, 22, 4); ctx.fill()
-      ctx.fillStyle = navBg; ctx.font = `bold 8px ${cfg.heroFont}`; ctx.textAlign = 'center'
-      ctx.fillText(cfg.cta1.slice(0, 20), 83, 154)
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.beginPath()
-      ctx.roundRect(148, 140, 80, 22, 4); ctx.stroke()
-      ctx.fillStyle = '#fff'; ctx.font = `8px ${cfg.heroFont}`
-      ctx.fillText(cfg.cta2.slice(0, 18), 188, 154)
+      ctx.roundRect(36, startY + 76, 150, 32, 5); ctx.fill()
+      ctx.fillStyle = navBg; ctx.font = `bold 11px ${cfg.heroFont}`; ctx.textAlign = 'center'
+      ctx.fillText(cfg.cta1.slice(0, 22), 111, startY + 97)
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5; ctx.beginPath()
+      ctx.roundRect(198, startY + 76, 110, 32, 5); ctx.stroke()
+      ctx.fillStyle = '#fff'; ctx.font = `11px ${cfg.heroFont}`
+      ctx.fillText(cfg.cta2.slice(0, 18), 253, startY + 97)
     }
 
     function drawServices() {
       if (!cfg.showServices) return
-      ctx.fillStyle = '#f8f9fa'; ctx.fillRect(0, 248, W, 67)
+      ctx.fillStyle = '#f8f9fa'; ctx.fillRect(0, 340, W, 80)
       ctx.fillStyle = '#aaa'; ctx.font = '8px Arial'; ctx.textAlign = 'center'
-      ctx.fillText('OUR SERVICES', W / 2, 264)
+      ctx.fillText('OUR SERVICES', W / 2, 360)
       const svcs = cfg.services.slice(0, 5)
       const icons = ['⚖', '📋', '🏛', '🤝', '📞']
       svcs.forEach((svc, i) => {
         const x = 56 + i * 112
-        ctx.font = '14px Arial'; ctx.fillText(icons[i] || '•', x, 290)
-        ctx.fillStyle = '#555'; ctx.font = '7px Arial'; ctx.textAlign = 'center'
-        ctx.fillText(svc.slice(0, 14), x, 306)
+        ctx.font = '16px Arial'; ctx.fillText(icons[i] || '•', x, 392)
+        ctx.fillStyle = '#555'; ctx.font = '8px Arial'; ctx.textAlign = 'center'
+        ctx.fillText(svc.slice(0, 14), x, 410)
         ctx.fillStyle = '#aaa'
       })
     }
 
     function drawFade() {
-      const fade = ctx.createLinearGradient(0, H - 60, 0, H)
-      fade.addColorStop(0, 'rgba(255,255,255,0)')
-      fade.addColorStop(1, 'rgba(255,255,255,1)')
-      ctx.fillStyle = fade; ctx.fillRect(0, H - 60, W, 60)
-      // border radius clip effect
-      ctx.fillStyle = '#fff'
+      // No bottom fade - clean mockup
     }
   })
 }
@@ -249,6 +249,10 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
         </label>
 
         {showMockup && <>
+          {sl('Nav & Domain')}
+          <div>{lbl('Domain Name')}<input style={fs} value={mockupCfg.domain||''} placeholder="yourbusiness.com.my" onChange={e => saveMockup({domain:e.target.value})}/></div>
+          <div>{lbl('Nav Logo Text (shown in nav bar)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
+
           {sl('Hero Content')}
           {[['Headline','headline','Professional Services'],['Sub Headline','subheadline','in Kuching, Sarawak'],['Tagline','tagline','Professional · Trusted · Experienced'],['CTA Button 1','cta1','Get Free Consultation'],['CTA Button 2','cta2','Our Services →']].map(([lb,key,ph]) => (
             <div key={key}>{lbl(lb)}<input style={fs} value={mockupCfg[key]||''} placeholder={ph} onChange={e => saveMockup({[key]:e.target.value})}/></div>
@@ -263,6 +267,12 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
               </div>
             </div>
           ))}
+          <div>{lbl('BG Image Overlay Opacity — ' + Math.round((mockupCfg.bgOverlayOpacity||0.55)*100) + '%')}
+            <input type="range" min="0" max="100" value={Math.round((mockupCfg.bgOverlayOpacity||0.55)*100)}
+              onChange={e => saveMockup({bgOverlayOpacity: Number(e.target.value)/100})}
+              style={{ width:'100%', accentColor:'var(--cyan)', marginTop:4 }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--muted)', marginTop:1 }}><span>Transparent</span><span>Solid</span></div>
+          </div>
           {lbl('Background Image (optional)')}
           <div style={{ display:'flex', gap:8, marginTop:3 }}>
             <button onClick={() => bgImgInputRef.current?.click()} style={{ flex:1, background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:5, fontSize:11, padding:'7px', cursor:'pointer' }}>
@@ -481,6 +491,10 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
         </label>
 
         {showMockup && <>
+          {sl('Nav & Domain')}
+          <div>{lbl('Domain Name')}<input style={fs} value={mockupCfg.domain||''} placeholder="yourbusiness.com.my" onChange={e => saveMockup({domain:e.target.value})}/></div>
+          <div>{lbl('Nav Logo Text (shown in nav bar)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
+
           {sl('Hero Content')}
           <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
             {[['Headline','headline','Professional Services'],['Sub Headline','subheadline','in Kuching, Sarawak'],['Tagline','tagline','Professional · Trusted · Experienced'],['CTA Button 1','cta1','Get Free Consultation'],['CTA Button 2','cta2','Our Services →']].map(([lb,key,ph]) => (
@@ -503,7 +517,13 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
               </div>
             </div>
             <div>
-              {lbl('Background Image (optional)')}
+              <div>{lbl('BG Image Overlay Opacity — ' + Math.round((mockupCfg.bgOverlayOpacity||0.55)*100) + '%')}
+            <input type="range" min="0" max="100" value={Math.round((mockupCfg.bgOverlayOpacity||0.55)*100)}
+              onChange={e => saveMockup({bgOverlayOpacity: Number(e.target.value)/100})}
+              style={{ width:'100%', accentColor:'var(--cyan)', marginTop:4 }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--muted)', marginTop:1 }}><span>Transparent</span><span>Solid</span></div>
+          </div>
+          {lbl('Background Image (optional)')}
               <div style={{ display:'flex', gap:5, marginTop:3 }}>
                 <button onClick={() => bgImgInputRef.current?.click()} style={{ flex:1, background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:4, fontSize:10, padding:'5px', cursor:'pointer' }}>
                   {mockupCfg.bgImage ? '✓ Image set — change' : '📷 Upload image'}
