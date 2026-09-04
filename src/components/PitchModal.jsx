@@ -43,7 +43,7 @@ function getGoogleFontLink(fontFamily) {
 // Draw mockup on canvas and return base64 PNG
 async function renderMockupToBase64(lead, mockupCfg, brand) {
   return new Promise((resolve) => {
-    const W = 560, H = 260
+    const W = 560, H = 315
     const canvas = document.createElement('canvas')
     canvas.width = W * 2; canvas.height = H * 2 // 2x for retina
     const ctx = canvas.getContext('2d')
@@ -83,7 +83,7 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     if (cfg.bgImage) {
       const img = new window.Image()
       img.onload = () => {
-        ctx.drawImage(img, 0, 64, W, 130)
+        ctx.drawImage(img, 0, 64, W, 184)
         // overlay
         ctx.fillStyle = bgColor + 'cc'
         ctx.fillRect(0, 64, W, 130)
@@ -100,16 +100,16 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     }
 
     function drawBgGradient() {
-      const grad = ctx.createLinearGradient(0, 64, W, 194)
+      const grad = ctx.createLinearGradient(0, 64, W, 248)
       grad.addColorStop(0, bgColor)
       grad.addColorStop(1, bgColor2 + '33')
       ctx.fillStyle = grad
-      ctx.fillRect(0, 64, W, 130)
+      ctx.fillRect(0, 64, W, 184)
       // Decorative circles
       ctx.fillStyle = accentColor + '15'
-      ctx.beginPath(); ctx.arc(W - 80, 110, 60, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(W - 80, 140, 75, 0, Math.PI * 2); ctx.fill()
       ctx.fillStyle = accentColor + '20'
-      ctx.beginPath(); ctx.arc(W - 50, 85, 35, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(W - 50, 100, 45, 0, Math.PI * 2); ctx.fill()
     }
 
     function drawHeroContent() {
@@ -132,16 +132,16 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
 
     function drawServices() {
       if (!cfg.showServices) return
-      ctx.fillStyle = '#f8f9fa'; ctx.fillRect(0, 194, W, 66)
+      ctx.fillStyle = '#f8f9fa'; ctx.fillRect(0, 248, W, 67)
       ctx.fillStyle = '#aaa'; ctx.font = '8px Arial'; ctx.textAlign = 'center'
-      ctx.fillText('OUR SERVICES', W / 2, 210)
+      ctx.fillText('OUR SERVICES', W / 2, 264)
       const svcs = cfg.services.slice(0, 5)
       const icons = ['⚖', '📋', '🏛', '🤝', '📞']
       svcs.forEach((svc, i) => {
         const x = 56 + i * 112
-        ctx.font = '14px Arial'; ctx.fillText(icons[i] || '•', x, 238)
+        ctx.font = '14px Arial'; ctx.fillText(icons[i] || '•', x, 290)
         ctx.fillStyle = '#555'; ctx.font = '7px Arial'; ctx.textAlign = 'center'
-        ctx.fillText(svc.slice(0, 14), x, 252)
+        ctx.fillText(svc.slice(0, 14), x, 306)
         ctx.fillStyle = '#aaa'
       })
     }
@@ -214,6 +214,92 @@ ${mockupBase64 ? `
   </p>
 </td></tr>
 </table></td></tr></table></body></html>`
+}
+
+
+function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgInputRef, handleBgImgUpload, applyAndPreview, mockupBase64 }) {
+  const fs = { width: '100%', background: '#111827', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '7px 10px', outline: 'none', marginTop: 3 }
+  const sl = (txt) => <div style={{ fontSize: 11, color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid var(--border)', marginTop: 16 }}>{txt}</div>
+  const lbl = (txt) => <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, marginTop: 8 }}>{txt}</div>
+
+  return (
+    <div style={{ display: 'flex', gap: 20 }}>
+      {/* Left: preview of mockup */}
+      <div style={{ flex: 1 }}>
+        {mockupBase64 && showMockup ? (
+          <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', border: '1px solid #e0e0e0' }}>
+            <img src={mockupBase64} alt="Mockup preview" style={{ width: '100%', display: 'block' }}/>
+          </div>
+        ) : (
+          <div style={{ height: 300, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            Enable mockup and click Apply & Preview
+          </div>
+        )}
+        <button onClick={applyAndPreview} style={{ width: '100%', marginTop: 12, background: 'var(--cyan)', color: 'var(--bg)', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, padding: 10, cursor: 'pointer' }}>
+          ↺ Apply & Refresh Preview
+        </button>
+      </div>
+
+      {/* Right: controls */}
+      <div style={{ width: 300, flexShrink: 0, overflow: 'auto', maxHeight: 580 }}>
+        {sl('Toggle')}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
+          <input type="checkbox" checked={showMockup} onChange={e => setShowMockup(e.target.checked)} style={{ width: 14, height: 14, accentColor: 'var(--cyan)', flexShrink: 0 }}/>
+          Show website mockup in email
+        </label>
+
+        {showMockup && <>
+          {sl('Hero Content')}
+          {[['Headline','headline','Professional Services'],['Sub Headline','subheadline','in Kuching, Sarawak'],['Tagline','tagline','Professional · Trusted · Experienced'],['CTA Button 1','cta1','Get Free Consultation'],['CTA Button 2','cta2','Our Services →']].map(([lb,key,ph]) => (
+            <div key={key}>{lbl(lb)}<input style={fs} value={mockupCfg[key]||''} placeholder={ph} onChange={e => saveMockup({[key]:e.target.value})}/></div>
+          ))}
+
+          {sl('Background')}
+          {[['BG Gradient From','bgColor','#0A2540'],['BG Gradient To','bgColor2','#00D4FF']].map(([lb,key,def]) => (
+            <div key={key}>{lbl(lb)}
+              <div style={{ display:'flex',gap:8,marginTop:3 }}>
+                <input type="color" value={mockupCfg[key]||def} onChange={e => saveMockup({[key]:e.target.value})} style={{ width:32,height:30,border:'none',borderRadius:4,cursor:'pointer',padding:2 }}/>
+                <input style={{...fs,marginTop:0,flex:1}} value={mockupCfg[key]||def} onChange={e => saveMockup({[key]:e.target.value})}/>
+              </div>
+            </div>
+          ))}
+          {lbl('Background Image (optional)')}
+          <div style={{ display:'flex', gap:8, marginTop:3 }}>
+            <button onClick={() => bgImgInputRef.current?.click()} style={{ flex:1, background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:5, fontSize:11, padding:'7px', cursor:'pointer' }}>
+              {mockupCfg.bgImage ? '✓ Image set — change' : '📷 Upload background image'}
+            </button>
+            {mockupCfg.bgImage && <button onClick={() => saveMockup({bgImage:null})} style={{ background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:5, fontSize:11, padding:'7px 10px', cursor:'pointer' }}>✕</button>}
+          </div>
+          <input ref={bgImgInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleBgImgUpload}/>
+
+          {sl('Colors')}
+          {[['Nav Color','navBg','#0A2540'],['Accent Color','accentColor','#00D4FF'],['Headline Color','headlineColor','#ffffff'],['Sub Headline Color','subColor','#00D4FF']].map(([lb,key,def]) => (
+            <div key={key}>{lbl(lb)}
+              <div style={{ display:'flex',gap:8,marginTop:3 }}>
+                <input type="color" value={mockupCfg[key]||def} onChange={e => saveMockup({[key]:e.target.value})} style={{ width:32,height:30,border:'none',borderRadius:4,cursor:'pointer',padding:2 }}/>
+                <input style={{...fs,marginTop:0,flex:1}} value={mockupCfg[key]||def} onChange={e => saveMockup({[key]:e.target.value})}/>
+              </div>
+            </div>
+          ))}
+
+          {sl('Services Bar')}
+          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, color:'var(--muted)', marginBottom:8 }}>
+            <input type="checkbox" checked={mockupCfg.showServices !== false} onChange={e => saveMockup({showServices:e.target.checked})} style={{ width:14,height:14,accentColor:'var(--cyan)',flexShrink:0 }}/>
+            Show services bar
+          </label>
+          {mockupCfg.showServices !== false && (mockupCfg.services || DEFAULT_MOCKUP.services).map((svc, i) => (
+            <div key={i}>{lbl(`Service ${i+1}`)}
+              <input style={fs} value={svc} onChange={e => {
+                const updated = [...(mockupCfg.services || DEFAULT_MOCKUP.services)]
+                updated[i] = e.target.value
+                saveMockup({ services: updated })
+              }}/>
+            </div>
+          ))}
+        </>}
+      </div>
+    </div>
+  )
 }
 
 export default function PitchModal({ lead, location, onClose }) {
@@ -332,16 +418,7 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
   const BrandPanel = () => (
     <div style={{ width: 290, borderLeft: '1px solid var(--border)', overflow: 'auto', padding: '12px 14px', flexShrink: 0, background: '#0D1424', fontSize: 11 }}>
 
-      {/* Tab switcher inside brand panel */}
-      <div style={{ display: 'flex', background: 'var(--bg2)', borderRadius: 5, padding: 2, marginBottom: 10, gap: 2 }}>
-        {[['brand','🎨 Brand'],['mockup','🖥 Mockup']].map(([t, txt]) => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: '5px 0', fontSize: 10, borderRadius: 4, cursor: 'pointer', border: 'none',
-            background: activeTab === t ? 'var(--border)' : 'transparent',
-            color: activeTab === t ? 'var(--cyan)' : 'var(--muted)' }}>{txt}</button>
-        ))}
-      </div>
-
-      {activeTab === 'brand' && <>
+      {true && <>
         {sl('Logo')}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           {brand.logo ? <img src={brand.logo} alt="logo" style={{ height: 36, maxWidth: 90, objectFit: 'contain', background: brand.primaryColor, padding: 4, borderRadius: 4 }} /> : <div style={{ width: 52, height: 36, background: 'var(--bg2)', border: '1px dashed var(--border)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--muted)' }}>None</div>}
@@ -396,7 +473,7 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
         ))}
       </>}
 
-      {activeTab === 'mockup' && <>
+      {false && <>
         {sl('Mockup Toggle')}
         <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, color:'var(--muted)', marginBottom:8 }}>
           <input type="checkbox" checked={showMockup} onChange={e => setShowMockup(e.target.checked)} style={{ accentColor:'var(--cyan)' }}/>
@@ -498,6 +575,7 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
             {tabBtn('preview', '👁 Preview')}
             {tabBtn('html', '</> HTML')}
             {tabBtn('text', '📝 Plain Text')}
+            {tabBtn('mockup', '🖥 Mockup')}
           </div>
           <button onClick={applyAndPreview} style={{ fontSize:11, color:'var(--cyan)', background:'transparent', border:'1px solid rgba(0,212,255,0.35)', borderRadius:5, padding:'5px 12px', cursor:'pointer' }}>
             ↺ Apply & Refresh
@@ -526,12 +604,14 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
                 <textarea value={htmlContent} onChange={e => setHtmlContent(e.target.value)}
                   style={{ width:'100%', height:580, fontFamily:'monospace', fontSize:11, lineHeight:1.5, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color:'#F0F4FF', padding:12, resize:'vertical', outline:'none' }}/>
               </div>
-            ) : (
+            ) : activeTab === 'text' ? (
               <textarea value={pitch} onChange={e => setPitch(e.target.value)}
                 style={{ width:'100%', height:580, fontFamily:'monospace', fontSize:13, lineHeight:1.65, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', padding:12, resize:'vertical', outline:'none' }}/>
-            )}
+            ) : activeTab === 'mockup' ? (
+              <MockupPanel mockupCfg={mockupCfg} saveMockup={saveMockup} showMockup={showMockup} setShowMockup={setShowMockup} bgImgInputRef={bgImgInputRef} handleBgImgUpload={handleBgImgUpload} applyAndPreview={applyAndPreview} mockupBase64={mockupBase64}/>
+            ) : null}
           </div>
-          {showBrand && <BrandPanel/>}
+          {showBrand && activeTab === 'preview' && <BrandPanel/>}
         </div>
 
         {/* Footer */}
