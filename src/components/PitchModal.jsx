@@ -32,7 +32,7 @@ const DEFAULT_MOCKUP = {
   bgOverlayOpacity: 0.55,
   navBg: '#0A2540', accentColor: '#00D4FF',
   domain: 'yourbusiness.com.my',
-  navLogoType: 'text', navLogoText: '', navLogoImg: null,
+  navLogoType: 'text', navLogoText: '', navLogoImg: null, bgFit: 'cover',
   showServices: true, services: ['Legal Advice', 'Documentation', 'Representation', 'Consultation', 'Contact Us'],
   heroFont: 'Arial', headlineColor: '#ffffff', subColor: '#00D4FF',
 }
@@ -41,6 +41,12 @@ function getGoogleFontLink(fontFamily) {
   const found = FONT_OPTIONS.find(f => f.value === fontFamily)
   if (!found || !found.google) return ''
   return `<link href="https://fonts.googleapis.com/css2?family=${found.google}&display=swap" rel="stylesheet"/>`
+}
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#','')
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16)
+  return `rgba(${r},${g},${b},${alpha})`
 }
 
 // Draw mockup on canvas and return base64 PNG
@@ -72,10 +78,22 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     // Nav
     ctx.fillStyle = navBg
     ctx.fillRect(0, 28, W, 40)
-    // Nav logo text or business name
-    const navLogo = cfg.navLogoText || bizName.slice(0, 18)
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left'
-    ctx.fillText(navLogo, 18, 53)
+    // Nav logo: image if set, else text
+    if (cfg.navLogoImg) {
+      const logoImg = new window.Image()
+      logoImg.src = cfg.navLogoImg
+      try {
+        const lh = 24, lw = Math.min(120, lh * (logoImg.width / logoImg.height || 3))
+        ctx.drawImage(logoImg, 18, 40, lw, lh)
+      } catch(e) {
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left'
+        ctx.fillText(cfg.navLogoText || bizName.slice(0, 18), 18, 53)
+      }
+    } else {
+      const navLogo = cfg.navLogoText || bizName.slice(0, 18)
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left'
+      ctx.fillText(navLogo, 18, 53)
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = '9px Arial'
     ;['Home', 'About', 'Services'].forEach((item, i) => ctx.fillText(item, 340 + i * 50, 53))
     ctx.fillStyle = accentColor; ctx.beginPath()
@@ -87,10 +105,30 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
     if (cfg.bgImage) {
       const img = new window.Image()
       img.onload = () => {
-        ctx.drawImage(img, 0, 68, W, 272)
-        // overlay
-        ctx.fillStyle = bgColor + 'cc'
-        ctx.fillRect(0, 64, W, 130)
+        // Step 1: draw bg image with chosen fit
+        const fit = cfg.bgFit || 'cover'
+        const ix = 0, iy = 68, iw = W, ih = 272
+        ctx.save()
+        ctx.beginPath(); ctx.rect(ix, iy, iw, ih); ctx.clip()
+        if (fit === 'contain') {
+          const scale = Math.min(iw/img.width, ih/img.height)
+          const sw = img.width*scale, sh = img.height*scale
+          ctx.drawImage(img, ix+(iw-sw)/2, iy+(ih-sh)/2, sw, sh)
+        } else {
+          // cover (default) - fill area maintaining aspect ratio
+          const scale = Math.max(iw/img.width, ih/img.height)
+          const sw = img.width*scale, sh = img.height*scale
+          ctx.drawImage(img, ix+(iw-sw)/2, iy+(ih-sh)/2, sw, sh)
+        }
+        ctx.restore()
+        // Step 2: gradient overlay ON TOP of bg image
+        const overlayOpacity = cfg.bgOverlayOpacity !== undefined ? cfg.bgOverlayOpacity : 0.55
+        const grad = ctx.createLinearGradient(ix, iy, ix+iw, iy+ih)
+        grad.addColorStop(0, hexToRgba(bgColor, overlayOpacity))
+        grad.addColorStop(1, hexToRgba(bgColor2 || bgColor, overlayOpacity * 0.3))
+        ctx.fillStyle = grad
+        ctx.fillRect(ix, iy, iw, ih)
+        // Step 3: content on top
         drawHeroContent()
         drawServices()
         drawFade()
@@ -105,14 +143,13 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
 
     function drawBgGradient() {
       const grad = ctx.createLinearGradient(0, 68, W, 340)
-      grad.addColorStop(0, bgColor)
-      grad.addColorStop(1, bgColor2 + '22')
+      grad.addColorStop(0, hexToRgba(bgColor, 1))
+      grad.addColorStop(1, hexToRgba(bgColor2 || bgColor, 0.15))
       ctx.fillStyle = grad
       ctx.fillRect(0, 68, W, 272)
-      // Decorative circles
-      ctx.fillStyle = accentColor + '12'
+      ctx.fillStyle = hexToRgba(accentColor, 0.08)
       ctx.beginPath(); ctx.arc(W - 60, 180, 100, 0, Math.PI * 2); ctx.fill()
-      ctx.fillStyle = accentColor + '18'
+      ctx.fillStyle = hexToRgba(accentColor, 0.12)
       ctx.beginPath(); ctx.arc(W - 30, 120, 60, 0, Math.PI * 2); ctx.fill()
     }
 
@@ -218,14 +255,15 @@ ${mockupBase64 ? `
 
 
 function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgInputRef, handleBgImgUpload, applyAndPreview, mockupBase64 }) {
+  const navLogoInputRef = React.useRef(null)
   const fs = { width: '100%', background: '#111827', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '7px 10px', outline: 'none', marginTop: 3 }
   const sl = (txt) => <div style={{ fontSize: 11, color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid var(--border)', marginTop: 16 }}>{txt}</div>
   const lbl = (txt) => <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, marginTop: 8 }}>{txt}</div>
 
   return (
-    <div style={{ display: 'flex', gap: 20 }}>
+    <div style={{ display: 'flex', gap: 20, height: '100%' }}>
       {/* Left: preview of mockup */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {mockupBase64 && showMockup ? (
           <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', border: '1px solid #e0e0e0' }}>
             <img src={mockupBase64} alt="Mockup preview" style={{ width: '100%', display: 'block' }}/>
@@ -241,7 +279,7 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
       </div>
 
       {/* Right: controls */}
-      <div style={{ width: 300, flexShrink: 0, overflow: 'auto', maxHeight: 580 }}>
+      <div style={{ width: 300, flexShrink: 0, overflowY: 'auto', flex: '0 0 300px' }}>
         {sl('Toggle')}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
           <input type="checkbox" checked={showMockup} onChange={e => setShowMockup(e.target.checked)} style={{ width: 14, height: 14, accentColor: 'var(--cyan)', flexShrink: 0 }}/>
@@ -251,7 +289,23 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
         {showMockup && <>
           {sl('Nav & Domain')}
           <div>{lbl('Domain Name')}<input style={fs} value={mockupCfg.domain||''} placeholder="yourbusiness.com.my" onChange={e => saveMockup({domain:e.target.value})}/></div>
-          <div>{lbl('Nav Logo Text (shown in nav bar)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
+          <div style={{marginTop:8}}>{lbl('Nav Logo')}
+            <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center'}}>
+              {mockupCfg.navLogoImg
+                ? <img src={mockupCfg.navLogoImg} alt="nav logo" style={{height:28,maxWidth:80,objectFit:'contain',background:'#1E2A45',padding:4,borderRadius:4}}/>
+                : <div style={{width:50,height:28,background:'var(--bg2)',border:'1px dashed var(--border)',borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'var(--muted)'}}>None</div>
+              }
+              <button onClick={() => navLogoInputRef.current?.click()} style={{background:'var(--bg2)',border:'1px solid var(--border)',color:'var(--muted)',borderRadius:4,fontSize:10,padding:'5px 8px',cursor:'pointer'}}>
+                📷 Upload logo
+              </button>
+              {mockupCfg.navLogoImg && <button onClick={() => saveMockup({navLogoImg:null})} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',borderRadius:4,fontSize:10,padding:'5px 8px',cursor:'pointer'}}>✕</button>}
+            </div>
+            <input ref={navLogoInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={e => {
+              const file = e.target.files[0]; if(!file) return
+              const r = new FileReader(); r.onload = ev => saveMockup({navLogoImg:ev.target.result}); r.readAsDataURL(file)
+            }}/>
+          </div>
+          <div style={{marginTop:8}}>{lbl('Nav Logo Text (if no image uploaded)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
 
           {sl('Hero Content')}
           {[['Headline','headline','Professional Services'],['Sub Headline','subheadline','in Kuching, Sarawak'],['Tagline','tagline','Professional · Trusted · Experienced'],['CTA Button 1','cta1','Get Free Consultation'],['CTA Button 2','cta2','Our Services →']].map(([lb,key,ph]) => (
@@ -281,6 +335,19 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
             {mockupCfg.bgImage && <button onClick={() => saveMockup({bgImage:null})} style={{ background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:5, fontSize:11, padding:'7px 10px', cursor:'pointer' }}>✕</button>}
           </div>
           <input ref={bgImgInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleBgImgUpload}/>
+          {mockupCfg.bgImage && <>
+            {lbl('Image Fit Mode')}
+            <div style={{display:'flex',gap:4,marginTop:4}}>
+              {[['cover','Cover'],['contain','Contain'],['stretch','Stretch']].map(([val,lb]) => (
+                <button key={val} onClick={() => saveMockup({bgFit:val})} style={{flex:1,padding:'5px 2px',fontSize:10,borderRadius:4,cursor:'pointer',border:'1px solid',
+                  background:(mockupCfg.bgFit||'cover')===val?'var(--cyan)':'var(--bg2)',
+                  color:(mockupCfg.bgFit||'cover')===val?'var(--bg)':'var(--muted)',
+                  borderColor:(mockupCfg.bgFit||'cover')===val?'var(--cyan)':'var(--border)'}}>
+                  {lb}
+                </button>
+              ))}
+            </div>
+          </>}
 
           {sl('Colors')}
           {[['Nav Color','navBg','#0A2540'],['Accent Color','accentColor','#00D4FF'],['Headline Color','headlineColor','#ffffff'],['Sub Headline Color','subColor','#00D4FF']].map(([lb,key,def]) => (
@@ -493,7 +560,23 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
         {showMockup && <>
           {sl('Nav & Domain')}
           <div>{lbl('Domain Name')}<input style={fs} value={mockupCfg.domain||''} placeholder="yourbusiness.com.my" onChange={e => saveMockup({domain:e.target.value})}/></div>
-          <div>{lbl('Nav Logo Text (shown in nav bar)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
+          <div style={{marginTop:8}}>{lbl('Nav Logo')}
+            <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center'}}>
+              {mockupCfg.navLogoImg
+                ? <img src={mockupCfg.navLogoImg} alt="nav logo" style={{height:28,maxWidth:80,objectFit:'contain',background:'#1E2A45',padding:4,borderRadius:4}}/>
+                : <div style={{width:50,height:28,background:'var(--bg2)',border:'1px dashed var(--border)',borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'var(--muted)'}}>None</div>
+              }
+              <button onClick={() => navLogoInputRef.current?.click()} style={{background:'var(--bg2)',border:'1px solid var(--border)',color:'var(--muted)',borderRadius:4,fontSize:10,padding:'5px 8px',cursor:'pointer'}}>
+                📷 Upload logo
+              </button>
+              {mockupCfg.navLogoImg && <button onClick={() => saveMockup({navLogoImg:null})} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',borderRadius:4,fontSize:10,padding:'5px 8px',cursor:'pointer'}}>✕</button>}
+            </div>
+            <input ref={navLogoInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={e => {
+              const file = e.target.files[0]; if(!file) return
+              const r = new FileReader(); r.onload = ev => saveMockup({navLogoImg:ev.target.result}); r.readAsDataURL(file)
+            }}/>
+          </div>
+          <div style={{marginTop:8}}>{lbl('Nav Logo Text (if no image uploaded)')}<input style={fs} value={mockupCfg.navLogoText||''} placeholder="Leave blank to use business name" onChange={e => saveMockup({navLogoText:e.target.value})}/></div>
 
           {sl('Hero Content')}
           <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
@@ -531,6 +614,19 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
                 {mockupCfg.bgImage && <button onClick={() => saveMockup({bgImage:null})} style={{ background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:4, fontSize:10, padding:'5px 8px', cursor:'pointer' }}>✕</button>}
               </div>
               <input ref={bgImgInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleBgImgUpload}/>
+          {mockupCfg.bgImage && <>
+            {lbl('Image Fit Mode')}
+            <div style={{display:'flex',gap:4,marginTop:4}}>
+              {[['cover','Cover'],['contain','Contain'],['stretch','Stretch']].map(([val,lb]) => (
+                <button key={val} onClick={() => saveMockup({bgFit:val})} style={{flex:1,padding:'5px 2px',fontSize:10,borderRadius:4,cursor:'pointer',border:'1px solid',
+                  background:(mockupCfg.bgFit||'cover')===val?'var(--cyan)':'var(--bg2)',
+                  color:(mockupCfg.bgFit||'cover')===val?'var(--bg)':'var(--muted)',
+                  borderColor:(mockupCfg.bgFit||'cover')===val?'var(--cyan)':'var(--border)'}}>
+                  {lb}
+                </button>
+              ))}
+            </div>
+          </>}
             </div>
           </div>
 
