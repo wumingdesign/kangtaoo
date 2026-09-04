@@ -36,6 +36,7 @@ const DEFAULT_BRAND = {
   fontStyle: 'normal',
   fontSize: 15,
   fontColor: '#2d2d3a',
+  fontAlign: 'left',
 }
 
 function getGoogleFontLink(fontFamily) {
@@ -50,7 +51,7 @@ function buildEmailHTML({ pitch, brand, lead, mockupSvg }) {
     whatsapp, location: loc, primaryColor, accentColor, logo,
     logoSize = 64, logoAlign = 'left', buttonAlign = 'left', footerAlign = 'left',
     fontFamily = 'Segoe UI, Arial, sans-serif', fontWeight = '400',
-    fontStyle = 'normal', fontSize = 15, fontColor = '#2d2d3a',
+    fontStyle = 'normal', fontSize = 15, fontColor = '#2d2d3a', fontAlign = 'left',
   } = brand
 
   const waLink = whatsapp
@@ -94,13 +95,14 @@ ${googleFont}
   <tr><td style="height:3px;background:linear-gradient(90deg,${accentColor},${primaryColor});"></td></tr>
 
   ${mockupSvg ? `
-  <!-- Hero Mockup -->
+  <!-- Hero Mockup Card -->
   <tr>
-    <td style="padding:0;background:#f8f9fa;">
-      <div style="position:relative;width:100%;">
+    <td style="padding:20px 36px 0;">
+      <div style="border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);border:1px solid #e0e2e6;position:relative;">
         ${mockupSvg}
         <div style="position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,#ffffff);"></div>
       </div>
+      <p style="margin:8px 0 0;font-size:10px;color:#bbb;text-align:center;letter-spacing:0.05em;">WEBSITE CONCEPT PROPOSAL</p>
     </td>
   </tr>
   ` : ''}
@@ -108,10 +110,10 @@ ${googleFont}
   <!-- Body -->
   <tr>
     <td style="padding:${mockupSvg ? '24px' : '36px'} 36px 24px;">
-      <p style="margin:0 0 8px;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};">Hi there,</p>
+      <p style="margin:0 0 8px;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};text-align:${fontAlign};">Hi there,</p>
       ${paragraphs.map((p, i) => {
         const formatted = p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/_(.*?)_/g, '<em>$1</em>')
-        return `<p style="margin:${i === 0 ? '16px' : '12px'} 0 0;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};line-height:1.7;">${formatted}</p>`
+        return `<p style="margin:${i === 0 ? '16px' : '12px'} 0 0;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};line-height:1.7;text-align:${fontAlign};">${formatted}</p>`
       }).join('')}
 
       <!-- CTA -->
@@ -223,9 +225,7 @@ function buildMockupSvg({ lead, brand }) {
   <!-- Fade overlay -->
   <rect y="32" width="600" height="248" fill="url(#fadeOut)"/>
 
-  <!-- "Mockup" watermark -->
-  <rect x="220" y="122" width="160" height="22" rx="4" fill="rgba(0,0,0,0.55)"/>
-  <text x="300" y="137" text-anchor="middle" font-size="10" fill="white" font-family="Arial" font-weight="600">✦ Website Concept Mockup</text>
+
 </svg>`
 }
 
@@ -500,6 +500,19 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                     <input type="color" value={brand.fontColor || '#2d2d3a'} onChange={e => saveBrand({ fontColor: e.target.value })} style={{ width: 34, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer', padding: 2 }} />
                     <input style={{ ...fieldStyle, marginTop: 0, flex: 1 }} value={brand.fontColor || '#2d2d3a'} onChange={e => saveBrand({ fontColor: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Text Alignment</div>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {[['left','⬅ Left'],['center','↔ Center'],['right','Right ➡'],['justify','⇔ Justify']].map(([val, lbl]) => (
+                      <button key={val} onClick={() => saveBrand({ fontAlign: val })} style={{
+                        flex: 1, padding: '5px 2px', fontSize: 9, borderRadius: 4, cursor: 'pointer', border: '1px solid',
+                        background: (brand.fontAlign || 'left') === val ? 'var(--cyan)' : 'var(--bg2)',
+                        color: (brand.fontAlign || 'left') === val ? 'var(--bg)' : 'var(--muted)',
+                        borderColor: (brand.fontAlign || 'left') === val ? 'var(--cyan)' : 'var(--border)',
+                      }}>{lbl}</button>
+                    ))}
                   </div>
                 </div>
               </div>
