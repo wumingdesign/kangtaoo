@@ -12,9 +12,15 @@ const DEFAULT_BRAND = {
   primaryColor: '#0A2540',
   accentColor: '#00D4FF',
   logo: null,
+  logoSize: 64,
   logoAlign: 'left',
   buttonAlign: 'left',
   footerAlign: 'left',
+  fontFamily: 'Segoe UI, Arial, sans-serif',
+  fontWeight: '400',
+  fontStyle: 'normal',
+  fontSize: 15,
+  fontColor: '#2d2d3a',
 }
 
 function buildEmailHTML({ pitch, brand, lead }) {
@@ -22,6 +28,9 @@ function buildEmailHTML({ pitch, brand, lead }) {
     companyName, tagline, yourName, jobTitle, email, phone,
     whatsapp, location: loc, primaryColor, accentColor, logo,
     logoAlign = 'left', buttonAlign = 'left', footerAlign = 'left',
+    fontFamily = 'Segoe UI, Arial, sans-serif', fontWeight = '400',
+    fontStyle = 'normal', fontSize = 15, fontColor = '#2d2d3a',
+    logoSize = 64,
   } = brand
 
   const waLink = whatsapp
@@ -49,7 +58,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
         <tr>
           <td align="${logoAlign}">
             ${logo
-              ? `<img src="${logo}" alt="${companyName} logo" style="height:48px;max-width:160px;object-fit:contain;display:block;"/>`
+              ? `<img src="${logo}" alt="${companyName} logo" style="height:${logoSize}px;max-width:${logoSize * 3}px;object-fit:contain;display:block;"/>`
               : `<div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">${companyName}</div>`
             }
             ${tagline ? `<div style="font-size:12px;color:${accentColor};margin-top:4px;letter-spacing:0.05em;text-transform:uppercase;">${tagline}</div>` : ''}
@@ -65,13 +74,13 @@ function buildEmailHTML({ pitch, brand, lead }) {
   <!-- Body -->
   <tr>
     <td style="padding:36px 36px 24px;">
-      <p style="margin:0 0 8px;font-size:15px;color:#1a1a2e;">Hi there,</p>
+      <p style="margin:0 0 8px;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};">Hi there,</p>
       ${paragraphs.map((p, i) => {
         // Bold key phrases
         const formatted = p
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/_(.*?)_/g, '<em>$1</em>')
-        return `<p style="margin:${i === 0 ? '16px' : '12px'} 0 0;font-size:15px;color:#2d2d3a;line-height:1.7;">${formatted}</p>`
+        return `<p style="margin:${i === 0 ? '16px' : '12px'} 0 0;font-family:${fontFamily};font-size:${fontSize}px;font-weight:${fontWeight};font-style:${fontStyle};color:${fontColor};line-height:1.7;">${formatted}</p>`
       }).join('')}
 
       <!-- CTA -->
@@ -87,7 +96,7 @@ function buildEmailHTML({ pitch, brand, lead }) {
       </table>
 
       <!-- Sign off -->
-      <p style="margin:28px 0 0;font-size:14px;color:#555;">Warm regards,</p>
+      <p style="margin:28px 0 0;font-family:${fontFamily};font-size:${fontSize}px;color:#555;">Warm regards,</p>
       <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#1a1a2e;">${yourName}</p>
       <p style="margin:2px 0 0;font-size:13px;color:#888;">${brand.jobTitle || 'Web Developer'}</p>
     </td>
@@ -310,6 +319,21 @@ Rules:
                 </div>
               </div>
 
+              {/* Logo size slider */}
+              {brand.logo && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    Logo Size — <span style={{ color: 'var(--cyan)' }}>{brand.logoSize || 64}px</span>
+                  </div>
+                  <input type="range" min="32" max="160" value={brand.logoSize || 64}
+                    onChange={e => saveBrand({ logoSize: Number(e.target.value) })}
+                    style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                    <span>Small (32px)</span><span>Large (160px)</span>
+                  </div>
+                </div>
+              )}
+
               {/* Alignment controls */}
               <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 {[['Logo Alignment', 'logoAlign'], ['Button Alignment', 'buttonAlign'], ['Footer Alignment', 'footerAlign']].map(([label, key]) => (
@@ -351,6 +375,78 @@ Rules:
                   />
                 </div>
               ))}
+
+              {/* Font controls */}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ fontSize: 11, color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                  Email Body Typography
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font Family</div>
+                <select style={{ ...fieldStyle, marginTop: 4 }} value={brand.fontFamily || 'Segoe UI, Arial, sans-serif'}
+                  onChange={e => saveBrand({ fontFamily: e.target.value })}>
+                  <option value="Segoe UI, Arial, sans-serif">Segoe UI (Default)</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Times New Roman, serif">Times New Roman</option>
+                  <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                  <option value="Tahoma, sans-serif">Tahoma</option>
+                  <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+                </select>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Font Size — <span style={{ color: 'var(--cyan)' }}>{brand.fontSize || 15}px</span>
+                </div>
+                <input type="range" min="12" max="20" value={brand.fontSize || 15}
+                  onChange={e => saveBrand({ fontSize: Number(e.target.value) })}
+                  style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer', marginTop: 8 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                  <span>Small (12px)</span><span>Large (20px)</span>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Font Weight</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[['300', 'Light'], ['400', 'Regular'], ['500', 'Medium'], ['700', 'Bold']].map(([val, label]) => (
+                    <button key={val} onClick={() => saveBrand({ fontWeight: val })}
+                      style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontWeight: val, borderRadius: 5, cursor: 'pointer', border: '1px solid', transition: 'all 0.15s',
+                        background: (brand.fontWeight || '400') === val ? 'var(--cyan)' : 'var(--bg2)',
+                        color: (brand.fontWeight || '400') === val ? 'var(--bg)' : 'var(--muted)',
+                        borderColor: (brand.fontWeight || '400') === val ? 'var(--cyan)' : 'var(--border)',
+                      }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Font Style</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[['normal', 'Normal'], ['italic', 'Italic']].map(([val, label]) => (
+                    <button key={val} onClick={() => saveBrand({ fontStyle: val })}
+                      style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontStyle: val, borderRadius: 5, cursor: 'pointer', border: '1px solid', transition: 'all 0.15s',
+                        background: (brand.fontStyle || 'normal') === val ? 'var(--cyan)' : 'var(--bg2)',
+                        color: (brand.fontStyle || 'normal') === val ? 'var(--bg)' : 'var(--muted)',
+                        borderColor: (brand.fontStyle || 'normal') === val ? 'var(--cyan)' : 'var(--border)',
+                      }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font Color</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                  <input type="color" value={brand.fontColor || '#2d2d3a'} onChange={e => saveBrand({ fontColor: e.target.value })}
+                    style={{ width: 36, height: 36, border: 'none', borderRadius: 4, cursor: 'pointer', padding: 2, background: 'none' }} />
+                  <input style={{ ...fieldStyle, marginTop: 0 }} value={brand.fontColor || '#2d2d3a'}
+                    onChange={e => saveBrand({ fontColor: e.target.value })} />
+                </div>
+              </div>
 
               {/* Color pickers */}
               <div>
