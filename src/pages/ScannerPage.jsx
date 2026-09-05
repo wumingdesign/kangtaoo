@@ -59,9 +59,7 @@ function shapePlace(p, ind, idx) {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 export default function ScannerPage({ onBack }) {
-  const [apiKey, setApiKey] = useState('')
-  const [apiKeySet, setApiKeySet] = useState(false)
-  const [showKeyInput, setShowKeyInput] = useState(false)
+  // Google Places now handled server-side via /api/places
   const [industry, setIndustry] = useState('')
   const [location, setLocation] = useState('')
   const [company, setCompany] = useState('')
@@ -77,7 +75,6 @@ export default function ScannerPage({ onBack }) {
   const [draftToOpen, setDraftToOpen] = useState(null)
   const [error, setError] = useState('')
   const [loadProgress, setLoadProgress] = useState(null)
-  const svcRef = useRef(null)
   const leadsRef = useRef([])
   const ivRef = useRef(null)
 
@@ -87,50 +84,32 @@ export default function ScannerPage({ onBack }) {
     setAllLeads([...newLeads])
   }
 
-  function saveApiKey() {
-    const k = apiKey.trim()
-    if (!k.startsWith('AIza')) { setError('API key must start with AIza'); return }
-    setError('')
-    const old = document.getElementById('gmaps-script')
-    if (old) old.remove()
-    const s = document.createElement('script')
-    s.id = 'gmaps-script'
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${k}&libraries=places&callback=__mapsReady`
-    s.async = true
-    s.defer = true
-    s.onerror = () => setError('Failed to load Maps SDK. Make sure Maps JavaScript API and Places API are enabled in Google Cloud Console.')
-    window.__mapsReady = () => {
-      const el = document.getElementById('map-container')
-      const map = new window.google.maps.Map(el, { center: { lat: 1.55, lng: 110.34 }, zoom: 12 })
-      svcRef.current = new window.google.maps.places.PlacesService(map)
-      setApiKeySet(true)
-      setShowKeyInput(false)
-    }
-    document.head.appendChild(s)
+  async function textSearch(q) {
+    const res = await fetch('/api/places', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q }),
+    })
+    if (!res.ok) throw new Error('Places API error: ' + res.status)
+    const data = await res.json()
+    if (data.error) throw new Error('Places error: ' + data.error)
+    return data.results || []
   }
 
-  function textSearch(q) {
-    return new Promise((res, rej) => {
-      const timer = setTimeout(() => rej(new Error('Search timed out. Check your API key and that Places API is enabled.')), 15000)
-      svcRef.current.textSearch({ query: q }, (results, status) => {
-        clearTimeout(timer)
-        if (status === 'OK' || status === 'ZERO_RESULTS') res(results || [])
-        else rej(new Error('Places error: ' + status))
+  async function getDetail(placeId) {
+    try {
+      const res = await fetch('/api/places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '', type: 'details', placeId }),
       })
-    })
-  }
-
-  function getDetail(pid) {
-    return new Promise(res => {
-      svcRef.current.getDetails(
-        { placeId: pid, fields: ['website', 'formatted_phone_number'] },
-        (r, s) => res(s === 'OK' ? r : null)
-      )
-    })
+      const data = await res.json()
+      return data.result || null
+    } catch { return null }
   }
 
   async function scan() {
-    if (!apiKeySet || !svcRef.current) { setError('Please add your Google Places API key first.'); return }
+    // Google Places handled server-side — no API key needed in browser
     if (!industry.trim() || !location.trim()) { setError('Enter an industry and location.'); return }
     setError('')
     setScanning(true)
@@ -246,7 +225,6 @@ export default function ScannerPage({ onBack }) {
 
   return (
     <div style={{ position: 'relative', zIndex: 1 }}>
-      <div id="map-container" style={{ display: 'none' }} />
 
       {/* Nav */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: '1px solid var(--border)' }}>
@@ -265,34 +243,11 @@ export default function ScannerPage({ onBack }) {
 
       <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 32px 60px' }}>
 
-        {/* API Key Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '10px 14px', background: '#0D1424', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: apiKeySet ? 'var(--green)' : 'var(--red)', flexShrink: 0, transition: 'background 0.3s' }} />
-          <div style={{ fontSize: 12, color: 'var(--muted)', flex: 1 }}>
-            {apiKeySet ? 'Google Places API connected ✓' : 'Google Places API key required to fetch real business data'}
-          </div>
-          <button onClick={() => setShowKeyInput(v => !v)} style={{ fontSize: 11, color: 'var(--cyan)', background: 'transparent', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>
-            {apiKeySet ? 'Change' : 'Add Key'}
-          </button>
+        {/* Google Places now server-side — no key input needed */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 14px', background: 'rgba(0,229,160,0.05)', border: '1px solid rgba(0,229,160,0.2)', borderRadius: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>Google Places API connected · key secured on server ✓</div>
         </div>
-
-        {/* API Key Input */}
-        {showKeyInput && (
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 14 }}>
-            <label style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, display: 'block' }}>
-              Google Places API Key
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="AIza..." onKeyDown={e => e.key === 'Enter' && saveApiKey()} style={{ fontFamily: 'monospace' }} />
-              <button onClick={saveApiKey} style={{ background: 'var(--cyan)', color: 'var(--bg)', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, padding: '9px 20px', cursor: 'pointer', flexShrink: 0 }}>
-                Save
-              </button>
-            </div>
-            <div style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 6, padding: '10px 14px', marginTop: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-              Enable <strong style={{ color: 'var(--text)' }}>Maps JavaScript API</strong> and <strong style={{ color: 'var(--text)' }}>Places API</strong> in Google Cloud Console. Your key stays in your browser only.
-            </div>
-          </div>
-        )}
 
         {/* Search Form */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 14 }}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { saveDraft, createDraftId, loadDrafts } from './DraftsPanel'
+import { saveDraft, createDraftId, getUserId } from './DraftsPanel'
 
 const FONT_OPTIONS = [
   { label: 'Segoe UI (Default)', value: 'Segoe UI, Arial, sans-serif', google: null },
@@ -498,21 +498,37 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     setHtmlContent(buildEmailHTML({ pitch, brand, mockupBase64: showMockup ? b64 : '' }))
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
+    // Strip base64 images from brand/mockup to stay under localStorage 5MB limit
+    // mockupBase64 and bgImage are regenerated on open; logo is kept as it's user-uploaded
+    const safeMockupCfg = { ...mockupCfg, bgImage: null } // bg image too large, strip it
+    // Build HTML without the base64 mockup image for storage
+    const safeHtml = htmlContent.replace(/src="data:image\/png;base64,[^"]+"/g, 'src=""')
     const draft = {
       id: draftId,
       savedAt: Date.now(),
       lead,
       pitch,
-      htmlContent,
+      htmlContent: safeHtml,
       brand,
-      mockupCfg,
+      mockupCfg: safeMockupCfg,
       showMockup,
-      hasMockup: showMockup && !!mockupBase64,
+      hasMockup: showMockup,
     }
-    saveDraft(draft)
-    setSavedDraft(true)
-    setTimeout(() => setSavedDraft(false), 2500)
+    try {
+      await saveDraft(draft)
+      setSavedDraft(true)
+      setTimeout(() => setSavedDraft(false), 2500)
+    } catch(e) {
+      // Try without brand logo if too large
+      try {
+        await saveDraft({ ...draft, brand: { ...brand, logo: null } })
+        setSavedDraft(true)
+        setTimeout(() => setSavedDraft(false), 2500)
+      } catch(e2) {
+        alert('Could not save draft: ' + e2.message)
+      }
+    }
   }
 
   async function fetchPitch() {
