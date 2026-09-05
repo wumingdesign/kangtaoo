@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import LeadCard from '../components/LeadCard'
+import DraftsPanel from '../components/DraftsPanel'
 import PitchModal from '../components/PitchModal'
 import Pagination from '../components/Pagination'
 
@@ -72,6 +73,8 @@ export default function ScannerPage({ onBack }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useState('grid')
   const [modal, setModal] = useState(null)
+  const [showDrafts, setShowDrafts] = useState(false)
+  const [draftToOpen, setDraftToOpen] = useState(null)
   const [error, setError] = useState('')
   const [loadProgress, setLoadProgress] = useState(null)
   const svcRef = useRef(null)
@@ -250,8 +253,13 @@ export default function ScannerPage({ onBack }) {
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--cyan)', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700, fontSize: 18 }}>
           Kang<span>Taoo</span>
         </button>
-        <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.4)', padding: '3px 10px', borderRadius: 3 }}>
-          Lead Scanner · Beta
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <button onClick={() => setShowDrafts(true)} style={{ fontFamily:'monospace', fontSize:11, color:'var(--muted)', border:'1px solid var(--border)', background:'transparent', padding:'5px 12px', borderRadius:5, cursor:'pointer' }}>
+            📁 Drafts
+          </button>
+          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.4)', padding: '3px 10px', borderRadius: 3 }}>
+            Lead Scanner · Beta
+          </div>
         </div>
       </nav>
 
@@ -408,11 +416,18 @@ export default function ScannerPage({ onBack }) {
         )}
       </div>
 
-      {modal && (
+      {(modal || draftToOpen) && (
         <PitchModal
-          lead={modal}
+          lead={draftToOpen ? draftToOpen.lead : modal}
           location={location}
-          onClose={() => setModal(null)}
+          initialDraft={draftToOpen || null}
+          onClose={() => { setModal(null); setDraftToOpen(null) }}
+        />
+      )}
+      {showDrafts && (
+        <DraftsPanel
+          onOpenDraft={(draft) => { setDraftToOpen(draft); setShowDrafts(false) }}
+          onClose={() => setShowDrafts(false)}
         />
       )}
     </div>

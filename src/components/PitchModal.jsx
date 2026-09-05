@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { saveDraft, createDraftId, loadDrafts } from './DraftsPanel'
 
 const FONT_OPTIONS = [
   { label: 'Segoe UI (Default)', value: 'Segoe UI, Arial, sans-serif', google: null },
@@ -431,27 +432,31 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
   )
 }
 
-export default function PitchModal({ lead, location, onClose }) {
-  const [pitch, setPitch] = useState('')
-  const [htmlContent, setHtmlContent] = useState('')
-  const [loading, setLoading] = useState(true)
+export default function PitchModal({ lead, location, onClose, initialDraft }) {
+  const [pitch, setPitch] = useState(initialDraft?.pitch || '')
+  const [htmlContent, setHtmlContent] = useState(initialDraft?.htmlContent || '')
+  const [loading, setLoading] = useState(!initialDraft)
   const [activeTab, setActiveTab] = useState('preview')
   const [showBrand, setShowBrand] = useState(true)
-  const [showMockup, setShowMockup] = useState(true)
+  const [showMockup, setShowMockup] = useState(initialDraft ? initialDraft.showMockup : true)
   const [mockupBase64, setMockupBase64] = useState('')
   const [mockupCfg, setMockupCfg] = useState(() => {
+    if (initialDraft?.mockupCfg) return { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
     catch { return DEFAULT_MOCKUP }
   })
   const [brand, setBrand] = useState(() => {
+    if (initialDraft?.brand) return { ...DEFAULT_BRAND, ...initialDraft.brand }
     try { return { ...DEFAULT_BRAND, ...JSON.parse(localStorage.getItem('kt_brand') || '{}') } }
     catch { return DEFAULT_BRAND }
   })
   const [copied, setCopied] = useState(false)
+  const [draftId] = useState(() => createDraftId())
+  const [savedDraft, setSavedDraft] = useState(false)
   const logoInputRef = useRef(null)
   const bgImgInputRef = useRef(null)
 
-  useEffect(() => { fetchPitch() }, [lead])
+  useEffect(() => { if (!initialDraft) fetchPitch() }, [lead])
 
   useEffect(() => {
     if (!loading && pitch) applyAndPreview()
@@ -491,6 +496,23 @@ export default function PitchModal({ lead, location, onClose }) {
       setMockupBase64('')
     }
     setHtmlContent(buildEmailHTML({ pitch, brand, mockupBase64: showMockup ? b64 : '' }))
+  }
+
+  function handleSaveDraft() {
+    const draft = {
+      id: draftId,
+      savedAt: Date.now(),
+      lead,
+      pitch,
+      htmlContent,
+      brand,
+      mockupCfg,
+      showMockup,
+      hasMockup: showMockup && !!mockupBase64,
+    }
+    saveDraft(draft)
+    setSavedDraft(true)
+    setTimeout(() => setSavedDraft(false), 2500)
   }
 
   async function fetchPitch() {
@@ -796,6 +818,10 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
           <button onClick={copyContent} disabled={loading}
             style={{ flex:1, background: copied ? 'var(--green)' : 'var(--cyan)', color:'var(--bg)', border:'none', borderRadius:6, fontSize:13, fontWeight:700, padding:10, cursor:'pointer', transition:'background 0.2s' }}>
             {copied ? '✓ Copied!' : activeTab === 'text' ? 'Copy Plain Text' : 'Copy HTML'}
+          </button>
+          <button onClick={handleSaveDraft} disabled={loading}
+            style={{ background: savedDraft ? 'var(--green)' : 'transparent', color: savedDraft ? 'var(--bg)' : 'var(--cyan)', border:`1px solid ${savedDraft ? 'var(--green)' : 'rgba(0,212,255,0.4)'}`, borderRadius:6, fontSize:13, fontWeight: savedDraft ? 700 : 400, padding:'10px 16px', cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.2s' }}>
+            {savedDraft ? '✓ Saved!' : '💾 Save Draft'}
           </button>
           <button onClick={fetchPitch} disabled={loading}
             style={{ background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', borderRadius:6, fontSize:13, padding:'10px 16px', cursor:'pointer' }}>
