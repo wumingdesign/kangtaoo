@@ -457,6 +457,8 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     catch { return DEFAULT_BRAND }
   })
   const [copied, setCopied] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [useCustomPrompt, setUseCustomPrompt] = useState(false)
   // Use lead-based ID so same lead always updates the same draft
   const [draftId] = useState(() => `draft_lead_${(lead?.name||'').replace(/[^a-z0-9]/gi,'_').toLowerCase()}_${(lead?.address||'').slice(0,20).replace(/[^a-z0-9]/gi,'_').toLowerCase()}`)
   const [savedDraft, setSavedDraft] = useState(false)
@@ -542,12 +544,24 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
 
   async function fetchPitch() {
     setLoading(true)
-    const prompt = `Write a short friendly cold outreach email body (under 120 words) from a web developer.
+    const defaultPrompt = `Write a short friendly cold outreach email body (under 120 words) from a web developer.
 Business: ${lead.name}, ${lead.type}, ${lead.address}
 Issue: ${lead.temp === 'hot' ? 'They have NO website at all' : 'Their website needs improvement'}
 Signals: ${(lead.sigs || []).join(', ')}
 Hook: ${lead.hook}
 Rules: No greeting line. No sign-off. Lead with their specific problem. One concrete benefit. End with soft question. Warm and human. 3-4 short paragraphs. Plain text only.`
+
+    const prompt = useCustomPrompt && customPrompt.trim()
+      ? `${customPrompt.trim()}
+
+Context about this business:
+- Business: ${lead.name}, ${lead.type}
+- Address: ${lead.address}
+- Issue: ${lead.temp === 'hot' ? 'No website at all' : 'Website needs improvement'}
+- Signals: ${(lead.sigs || []).join(', ')}
+
+Write plain text only. No markdown.`
+      : defaultPrompt
     try {
       const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) })
       const data = await res.json()
@@ -829,8 +843,54 @@ Rules: No greeting line. No sign-off. Lead with their specific problem. One conc
                   style={{ width:'100%', height:580, fontFamily:'monospace', fontSize:11, lineHeight:1.5, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color:'#F0F4FF', padding:12, resize:'vertical', outline:'none' }}/>
               </div>
             ) : activeTab === 'text' ? (
-              <textarea value={pitch} onChange={e => setPitch(e.target.value)}
-                style={{ width:'100%', height:580, fontFamily:'monospace', fontSize:13, lineHeight:1.65, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', padding:12, resize:'vertical', outline:'none' }}/>
+              <div style={{ display:'flex', flexDirection:'column', gap:10, height:'100%' }}>
+                {/* Custom prompt toggle */}
+                <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: useCustomPrompt ? 10 : 0 }}>
+                    <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:12, color:'var(--text)', fontWeight:500 }}>
+                      <input type="checkbox" checked={useCustomPrompt} onChange={e => setUseCustomPrompt(e.target.checked)}
+                        style={{ width:14, height:14, accentColor:'var(--cyan)', flexShrink:0 }}/>
+                      Use custom prompt
+                    </label>
+                    {useCustomPrompt && (
+                      <button onClick={fetchPitch} disabled={loading}
+                        style={{ background:'var(--cyan)', color:'var(--bg)', border:'none', borderRadius:5, fontSize:11, fontWeight:700, padding:'5px 12px', cursor:'pointer' }}>
+                        ↺ Generate
+                      </button>
+                    )}
+                  </div>
+                  {useCustomPrompt && (
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginBottom:6, lineHeight:1.5 }}>
+                        Write your own instruction. The business details (name, address, issue) will be appended automatically.
+                      </div>
+                      <textarea
+                        value={customPrompt}
+                        onChange={e => setCustomPrompt(e.target.value)}
+                        placeholder={`e.g. Write a casual WhatsApp message in Malay introducing my web design services. Keep it under 3 sentences and end with a question.`}
+                        rows={4}
+                        style={{ width:'100%', fontFamily:'inherit', fontSize:12, lineHeight:1.6, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', padding:'10px 12px', resize:'vertical', outline:'none', borderColor: useCustomPrompt ? 'var(--cyan)' : 'var(--border)' }}
+                      />
+                      <div style={{ display:'flex', gap:6, marginTop:8, flexWrap:'wrap' }}>
+                        {[
+                          ['WhatsApp (Malay)', 'Tulis mesej WhatsApp yang ringkas dan mesra dalam Bahasa Melayu untuk memperkenalkan perkhidmatan web design saya. Jangan terlalu formal. Akhiri dengan soalan.'],
+                          ['Short email (EN)', 'Write a 3-sentence cold email in English. Be direct, mention one specific benefit, end with a soft CTA for a free consultation.'],
+                          ['LinkedIn DM', 'Write a professional LinkedIn direct message under 80 words. Mention their business specifically and offer to show them a free website mockup.'],
+                          ['Follow-up', 'Write a friendly follow-up message for someone I already contacted about building their website. Keep it brief and not pushy.'],
+                        ].map(([label, prompt]) => (
+                          <button key={label} onClick={() => { setCustomPrompt(prompt); setUseCustomPrompt(true) }}
+                            style={{ fontSize:10, padding:'4px 10px', borderRadius:4, cursor:'pointer', border:'1px solid var(--border)', background:'var(--card)', color:'var(--muted)', whiteSpace:'nowrap' }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Pitch text */}
+                <textarea value={loading ? 'Generating…' : pitch} onChange={e => !loading && setPitch(e.target.value)}
+                  style={{ flex:1, minHeight:320, fontFamily:'monospace', fontSize:13, lineHeight:1.65, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color: loading ? 'var(--muted)' : 'var(--text)', padding:12, resize:'vertical', outline:'none' }}/>
+              </div>
             ) : activeTab === 'mockup' ? (
               <MockupPanel mockupCfg={mockupCfg} saveMockup={saveMockup} showMockup={showMockup} setShowMockup={setShowMockup} bgImgInputRef={bgImgInputRef} handleBgImgUpload={handleBgImgUpload} applyAndPreview={applyAndPreview} mockupBase64={mockupBase64}/>
             ) : null}
