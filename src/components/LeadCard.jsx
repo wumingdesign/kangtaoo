@@ -17,7 +17,7 @@ export default function LeadCard({ lead, location, view, onPitch, onSkip }) {
       ? <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: 'var(--green)' }}>
           🌐 {lead.website.replace(/https?:\/\//, '').replace(/\/$/, '').slice(0, 36)}
         </a>
-      : <span style={{ color: 'var(--red)' }}>🚫 No website</span>
+      : <span style={{ color: 'var(--red)' }}>🚫 No website detected · <a href={`https://www.google.com/search?q=${encodeURIComponent(lead.name)}`} target="_blank" rel="noreferrer" style={{ color:'var(--muted)', fontSize:10, textDecoration:'underline' }}>verify</a></span>
 
   const metaBlock = (
     <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.85, marginBottom: isList ? 0 : 8 }}>
