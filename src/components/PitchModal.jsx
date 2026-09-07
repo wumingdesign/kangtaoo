@@ -537,45 +537,40 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
 
   async function handleSaveDraft() {
     setSaving(true)
-    // Save large base64 assets to localStorage only, strip from MongoDB
-    if (mockupCfg.bgImage) {
-      try { localStorage.setItem('kt_bgimg_' + draftId, mockupCfg.bgImage) } catch(e) {}
-    }
-    if (mockupCfg.navLogoImg) {
-      try { localStorage.setItem('kt_navlogo_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
-    }
-    const safeLogo = brand.logo || null
-    // Strip brand logo too - save to localStorage separately
-    if (brand.logo) {
-      try { localStorage.setItem('kt_brandlogo_' + draftId, brand.logo) } catch(e) {}
-    }
-    const safeMockupCfg = { ...mockupCfg, bgImage: null, navLogoImg: null }
-    const safeBrand = { ...brand, logo: null }
-    const safeHtml = htmlContent.replace(/src="data:image\/[^;]+;base64,[^"]+"/g, 'src=""')
-    const draft = {
-      id: draftId,
-      savedAt: Date.now(),
-      updatedAt: Date.now(),
-      lead,
-      pitch,
-      htmlContent: safeHtml,
-      brand: safeBrand,
-      mockupCfg: safeMockupCfg,
-      showMockup,
-      hasMockup: showMockup,
-    }
     try {
+      // Save all images to localStorage — never send base64 to MongoDB
+      const toLocal = [
+        ['kt_bgimg_', mockupCfg.bgImage],
+        ['kt_navlogo_', mockupCfg.navLogoImg],
+        ['kt_brandlogo_', brand.logo],
+      ]
+      toLocal.forEach(([key, val]) => {
+        if (val) try { localStorage.setItem(key + draftId, val) } catch(e) {}
+      })
+
+      // Strip ALL images from MongoDB payload
+      const cleanMockup = { ...mockupCfg, bgImage: null, navLogoImg: null }
+      const cleanBrand = { ...brand, logo: null }
+
+      // Don't store htmlContent at all — it's rebuilt on open from pitch+brand+mockup
+      const draft = {
+        id: draftId,
+        savedAt: Date.now(),
+        updatedAt: Date.now(),
+        lead,
+        pitch,
+        htmlContent: '',
+        brand: cleanBrand,
+        mockupCfg: cleanMockup,
+        showMockup,
+        hasMockup: showMockup,
+      }
+
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)
     } catch(e) {
-      try {
-        await saveDraft({ ...draft, brand: { ...brand, logo: null } })
-        setSavedDraft(true)
-        setTimeout(() => setSavedDraft(false), 2500)
-      } catch(e2) {
-        alert('Could not save draft: ' + e2.message)
-      }
+      alert('Could not save draft: ' + e.message)
     } finally {
       setSaving(false)
     }

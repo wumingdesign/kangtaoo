@@ -40,9 +40,20 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const draft = req.body
       if (!draft?.id) return res.status(400).json({ error: 'draft.id required' })
+
+      // Safety: strip any base64 data that slipped through
+      const safe = { ...draft }
+      if (safe.mockupCfg) safe.mockupCfg = { ...safe.mockupCfg, bgImage: null, navLogoImg: null }
+      if (safe.brand) safe.brand = { ...safe.brand, logo: null }
+      safe.htmlContent = '' // always strip — rebuilt on client
+
+      // Check size (MongoDB 16MB limit, we target <100KB per draft)
+      const size = JSON.stringify(safe).length
+      if (size > 500000) return res.status(413).json({ error: 'Draft too large (' + Math.round(size/1024) + 'KB). Images must be uploaded separately.' })
+
       await col.updateOne(
-        { id: draft.id, userId },
-        { $set: { ...draft, userId, updatedAt: Date.now() }, $setOnInsert: { savedAt: draft.savedAt || Date.now() } },
+        { id: safe.id, userId },
+        { $set: { ...safe, userId, updatedAt: Date.now() }, $setOnInsert: { savedAt: safe.savedAt || Date.now() } },
         { upsert: true }
       )
       return res.status(200).json({ ok: true })
