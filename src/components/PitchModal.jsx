@@ -263,52 +263,8 @@ ${mockupBase64 ? `
 }
 
 
-function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgInputRef, handleBgImgUpload, applyAndPreview, mockupBase64, lead }) {
+function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgInputRef, handleBgImgUpload, applyAndPreview, mockupBase64 }) {
   const navLogoInputRef = React.useRef(null)
-  const [generatingBg, setGeneratingBg] = React.useState(false)
-  const [generatingLogo, setGeneratingLogo] = React.useState(false)
-  const [bgPrompt, setBgPrompt] = React.useState('')
-  const [logoPrompt, setLogoPrompt] = React.useState('')
-  const [aiError, setAiError] = React.useState('')
-
-  async function generateBgImage() {
-    if (!bgPrompt.trim()) return
-    setGeneratingBg(true); setAiError('')
-    try {
-      const fullPrompt = `${bgPrompt.trim()}. Professional website hero background image, wide landscape format, no text, no logos, photorealistic, high quality.`
-      const r = await fetch('/api/generate-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt, size: '1792x1024' })
-      })
-      const data = await r.json()
-      if (data.error) { setAiError('Image gen error: ' + data.error); return }
-      // Fetch image and convert to base64 for canvas use
-      const imgR = await fetch(data.url)
-      const blob = await imgR.blob()
-      const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.readAsDataURL(blob) })
-      saveMockup({ bgImage: b64 })
-    } catch(e) { setAiError('Failed: ' + e.message) }
-    finally { setGeneratingBg(false) }
-  }
-
-  async function generateNavLogo() {
-    if (!logoPrompt.trim()) return
-    setGeneratingLogo(true); setAiError('')
-    try {
-      const fullPrompt = `${logoPrompt.trim()}. Simple clean business logo, white or light colored on transparent/dark background, minimal design, suitable for website navigation bar, no text unless specified.`
-      const r = await fetch('/api/generate-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt, size: '1024x1024' })
-      })
-      const data = await r.json()
-      if (data.error) { setAiError('Logo gen error: ' + data.error); return }
-      const imgR = await fetch(data.url)
-      const blob = await imgR.blob()
-      const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.readAsDataURL(blob) })
-      saveMockup({ navLogoImg: b64 })
-    } catch(e) { setAiError('Failed: ' + e.message) }
-    finally { setGeneratingLogo(false) }
-  }
   const fs = { width: '100%', background: '#111827', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontFamily: 'inherit', fontSize: 12, padding: '7px 10px', outline: 'none', marginTop: 3 }
   const sl = (txt) => <div style={{ fontSize: 11, color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid var(--border)', marginTop: 16 }}>{txt}</div>
   const lbl = (txt) => <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, marginTop: 8 }}>{txt}</div>
@@ -360,29 +316,7 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
             }}/>
           </div>
 
-          {/* AI Logo Generation */}
-          <div style={{marginTop:10,background:'rgba(0,212,255,0.05)',border:'1px solid rgba(0,212,255,0.15)',borderRadius:8,padding:'10px 12px',marginBottom:4}}>
-            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,marginBottom:6}}>✨ AI Generate Logo</div>
-            <textarea value={logoPrompt} onChange={e => setLogoPrompt(e.target.value)} rows={2}
-              placeholder={`e.g. Minimalist scales of justice logo, white on dark background — or — Modern WM monogram logo, clean lines, white`}
-              style={{width:'100%',fontFamily:'inherit',fontSize:11,lineHeight:1.5,background:'#111827',border:'1px solid var(--border)',borderRadius:5,color:'var(--text)',padding:'7px 10px',resize:'vertical',outline:'none',marginBottom:6}}/>
-            <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
-              {[
-                ['Law firm','Scales of justice minimalist logo, white, elegant'],
-                ['Monogram','WM letter monogram logo, modern, white, minimal'],
-                ['Abstract','Abstract modern business logo mark, white on dark, geometric'],
-              ].map(([lb, p]) => (
-                <button key={lb} onClick={() => setLogoPrompt(p)}
-                  style={{fontSize:9,padding:'3px 8px',borderRadius:3,cursor:'pointer',border:'1px solid var(--border)',background:'var(--bg2)',color:'var(--muted)',whiteSpace:'nowrap'}}>
-                  {lb}
-                </button>
-              ))}
-            </div>
-            <button onClick={generateNavLogo} disabled={generatingLogo || !logoPrompt.trim()}
-              style={{width:'100%',background: generatingLogo ? 'var(--border)' : 'var(--cyan)',color: generatingLogo ? 'var(--muted)' : 'var(--bg)',border:'none',borderRadius:5,fontSize:11,fontWeight:700,padding:'8px',cursor: generatingLogo ? 'not-allowed' : 'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-              {generatingLogo ? (<><span style={{display:'inline-block',width:11,height:11,border:'2px solid var(--muted)',borderTopColor:'var(--cyan)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/> Generating…</>) : '✨ Generate Logo'}
-            </button>
-          </div>
+
 
           <div style={{marginTop:8}}>
             <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,color:'var(--muted)'}}>
@@ -441,31 +375,7 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
           </div>
           <input ref={bgImgInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleBgImgUpload}/>
 
-          {/* AI Background Generation */}
-          <div style={{marginTop:10,background:'rgba(0,212,255,0.05)',border:'1px solid rgba(0,212,255,0.15)',borderRadius:8,padding:'10px 12px'}}>
-            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,marginBottom:6}}>✨ AI Generate Background</div>
-            <div style={{fontSize:10,color:'var(--muted)',marginBottom:6}}>Powered by DALL-E 3 · ~$0.04 per image</div>
-            <textarea value={bgPrompt} onChange={e => setBgPrompt(e.target.value)} rows={2}
-              placeholder={`e.g. Modern law office interior, professional lighting, dark navy tones — or — Kuching cityscape at dusk, warm golden light`}
-              style={{width:'100%',fontFamily:'inherit',fontSize:11,lineHeight:1.5,background:'#111827',border:'1px solid var(--border)',borderRadius:5,color:'var(--text)',padding:'7px 10px',resize:'vertical',outline:'none',marginBottom:6}}/>
-            <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
-              {[
-                ['Law office','Professional law office interior, dark wood, books, dramatic lighting'],
-                ['City view','Kuching city skyline aerial view, golden hour, professional'],
-                ['Abstract dark','Abstract dark navy blue geometric background, professional, clean'],
-                ['Nature','Sarawak tropical nature, lush green, misty mountains, professional'],
-              ].map(([lb, p]) => (
-                <button key={lb} onClick={() => setBgPrompt(p)}
-                  style={{fontSize:9,padding:'3px 8px',borderRadius:3,cursor:'pointer',border:'1px solid var(--border)',background:'var(--bg2)',color:'var(--muted)',whiteSpace:'nowrap'}}>
-                  {lb}
-                </button>
-              ))}
-            </div>
-            <button onClick={generateBgImage} disabled={generatingBg || !bgPrompt.trim()}
-              style={{width:'100%',background: generatingBg ? 'var(--border)' : 'var(--cyan)',color: generatingBg ? 'var(--muted)' : 'var(--bg)',border:'none',borderRadius:5,fontSize:11,fontWeight:700,padding:'8px',cursor: generatingBg ? 'not-allowed' : 'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-              {generatingBg ? (<><span style={{display:'inline-block',width:11,height:11,border:'2px solid var(--muted)',borderTopColor:'var(--cyan)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/> Generating…</>)  : '✨ Generate Background Image'}
-            </button>
-          </div>
+
           {mockupCfg.bgImage && <>
             {lbl('Fit Mode')}
             <div style={{display:'flex',gap:4,marginTop:4,marginBottom:10}}>
@@ -507,7 +417,6 @@ function MockupPanel({ mockupCfg, saveMockup, showMockup, setShowMockup, bgImgIn
             </div>
           ))}
 
-          {aiError && <div style={{background:'rgba(255,91,127,0.08)',border:'1px solid rgba(255,91,127,0.3)',borderRadius:6,padding:'8px 12px',fontSize:11,color:'var(--red)',marginBottom:8}}>⚠ {aiError}</div>}
           {sl('Services Bar')}
           <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:13, color:'var(--muted)', marginBottom:8 }}>
             <input type="checkbox" checked={mockupCfg.showServices !== false} onChange={e => saveMockup({showServices:e.target.checked})} style={{ width:14,height:14,accentColor:'var(--cyan)',flexShrink:0 }}/>
@@ -628,19 +537,20 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
 
   async function handleSaveDraft() {
     setSaving(true)
-    // Save large base64 assets to localStorage, strip from MongoDB payload
+    // Save large base64 assets to localStorage only, strip from MongoDB
     if (mockupCfg.bgImage) {
       try { localStorage.setItem('kt_bgimg_' + draftId, mockupCfg.bgImage) } catch(e) {}
     }
     if (mockupCfg.navLogoImg) {
       try { localStorage.setItem('kt_navlogo_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
     }
-    // Also strip brand logo if very large (AI-generated logos)
-    const safeLogo = brand.logo && brand.logo.length > 100000 ? null : brand.logo
-    if (brand.logo && !safeLogo) {
+    const safeLogo = brand.logo || null
+    // Strip brand logo too - save to localStorage separately
+    if (brand.logo) {
       try { localStorage.setItem('kt_brandlogo_' + draftId, brand.logo) } catch(e) {}
     }
     const safeMockupCfg = { ...mockupCfg, bgImage: null, navLogoImg: null }
+    const safeBrand = { ...brand, logo: null }
     const safeHtml = htmlContent.replace(/src="data:image\/[^;]+;base64,[^"]+"/g, 'src=""')
     const draft = {
       id: draftId,
@@ -649,7 +559,7 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
       lead,
       pitch,
       htmlContent: safeHtml,
-      brand: { ...brand, logo: safeLogo },
+      brand: safeBrand,
       mockupCfg: safeMockupCfg,
       showMockup,
       hasMockup: showMockup,
@@ -820,29 +730,7 @@ Write plain text only. No markdown.`
             }}/>
           </div>
 
-          {/* AI Logo Generation */}
-          <div style={{marginTop:10,background:'rgba(0,212,255,0.05)',border:'1px solid rgba(0,212,255,0.15)',borderRadius:8,padding:'10px 12px',marginBottom:4}}>
-            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,marginBottom:6}}>✨ AI Generate Logo</div>
-            <textarea value={logoPrompt} onChange={e => setLogoPrompt(e.target.value)} rows={2}
-              placeholder={`e.g. Minimalist scales of justice logo, white on dark background — or — Modern WM monogram logo, clean lines, white`}
-              style={{width:'100%',fontFamily:'inherit',fontSize:11,lineHeight:1.5,background:'#111827',border:'1px solid var(--border)',borderRadius:5,color:'var(--text)',padding:'7px 10px',resize:'vertical',outline:'none',marginBottom:6}}/>
-            <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
-              {[
-                ['Law firm','Scales of justice minimalist logo, white, elegant'],
-                ['Monogram','WM letter monogram logo, modern, white, minimal'],
-                ['Abstract','Abstract modern business logo mark, white on dark, geometric'],
-              ].map(([lb, p]) => (
-                <button key={lb} onClick={() => setLogoPrompt(p)}
-                  style={{fontSize:9,padding:'3px 8px',borderRadius:3,cursor:'pointer',border:'1px solid var(--border)',background:'var(--bg2)',color:'var(--muted)',whiteSpace:'nowrap'}}>
-                  {lb}
-                </button>
-              ))}
-            </div>
-            <button onClick={generateNavLogo} disabled={generatingLogo || !logoPrompt.trim()}
-              style={{width:'100%',background: generatingLogo ? 'var(--border)' : 'var(--cyan)',color: generatingLogo ? 'var(--muted)' : 'var(--bg)',border:'none',borderRadius:5,fontSize:11,fontWeight:700,padding:'8px',cursor: generatingLogo ? 'not-allowed' : 'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-              {generatingLogo ? (<><span style={{display:'inline-block',width:11,height:11,border:'2px solid var(--muted)',borderTopColor:'var(--cyan)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/> Generating…</>) : '✨ Generate Logo'}
-            </button>
-          </div>
+
 
           <div style={{marginTop:8}}>
             <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,color:'var(--muted)'}}>
@@ -891,31 +779,7 @@ Write plain text only. No markdown.`
               </div>
               <input ref={bgImgInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleBgImgUpload}/>
 
-          {/* AI Background Generation */}
-          <div style={{marginTop:10,background:'rgba(0,212,255,0.05)',border:'1px solid rgba(0,212,255,0.15)',borderRadius:8,padding:'10px 12px'}}>
-            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,marginBottom:6}}>✨ AI Generate Background</div>
-            <div style={{fontSize:10,color:'var(--muted)',marginBottom:6}}>Powered by DALL-E 3 · ~$0.04 per image</div>
-            <textarea value={bgPrompt} onChange={e => setBgPrompt(e.target.value)} rows={2}
-              placeholder={`e.g. Modern law office interior, professional lighting, dark navy tones — or — Kuching cityscape at dusk, warm golden light`}
-              style={{width:'100%',fontFamily:'inherit',fontSize:11,lineHeight:1.5,background:'#111827',border:'1px solid var(--border)',borderRadius:5,color:'var(--text)',padding:'7px 10px',resize:'vertical',outline:'none',marginBottom:6}}/>
-            <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
-              {[
-                ['Law office','Professional law office interior, dark wood, books, dramatic lighting'],
-                ['City view','Kuching city skyline aerial view, golden hour, professional'],
-                ['Abstract dark','Abstract dark navy blue geometric background, professional, clean'],
-                ['Nature','Sarawak tropical nature, lush green, misty mountains, professional'],
-              ].map(([lb, p]) => (
-                <button key={lb} onClick={() => setBgPrompt(p)}
-                  style={{fontSize:9,padding:'3px 8px',borderRadius:3,cursor:'pointer',border:'1px solid var(--border)',background:'var(--bg2)',color:'var(--muted)',whiteSpace:'nowrap'}}>
-                  {lb}
-                </button>
-              ))}
-            </div>
-            <button onClick={generateBgImage} disabled={generatingBg || !bgPrompt.trim()}
-              style={{width:'100%',background: generatingBg ? 'var(--border)' : 'var(--cyan)',color: generatingBg ? 'var(--muted)' : 'var(--bg)',border:'none',borderRadius:5,fontSize:11,fontWeight:700,padding:'8px',cursor: generatingBg ? 'not-allowed' : 'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-              {generatingBg ? (<><span style={{display:'inline-block',width:11,height:11,border:'2px solid var(--muted)',borderTopColor:'var(--cyan)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/> Generating…</>)  : '✨ Generate Background Image'}
-            </button>
-          </div>
+
           {mockupCfg.bgImage && <>
             {lbl('Image Fit Mode')}
             <div style={{display:'flex',gap:4,marginTop:4}}>
@@ -944,7 +808,6 @@ Write plain text only. No markdown.`
             ))}
           </div>
 
-          {aiError && <div style={{background:'rgba(255,91,127,0.08)',border:'1px solid rgba(255,91,127,0.3)',borderRadius:6,padding:'8px 12px',fontSize:11,color:'var(--red)',marginBottom:8}}>⚠ {aiError}</div>}
           {sl('Services Bar')}
           <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, color:'var(--muted)', marginBottom:6 }}>
             <input type="checkbox" checked={mockupCfg.showServices !== false} onChange={e => saveMockup({showServices:e.target.checked})} style={{ accentColor:'var(--cyan)' }}/>
@@ -1071,7 +934,7 @@ Write plain text only. No markdown.`
                   style={{ flex:1, minHeight:320, fontFamily:'monospace', fontSize:13, lineHeight:1.65, background:'#111827', border:'1px solid var(--border)', borderRadius:6, color: loading ? 'var(--muted)' : 'var(--text)', padding:12, resize:'vertical', outline:'none' }}/>
               </div>
             ) : activeTab === 'mockup' ? (
-              <MockupPanel mockupCfg={mockupCfg} saveMockup={saveMockup} showMockup={showMockup} setShowMockup={setShowMockup} bgImgInputRef={bgImgInputRef} handleBgImgUpload={handleBgImgUpload} applyAndPreview={applyAndPreview} mockupBase64={mockupBase64} lead={lead}/>
+              <MockupPanel mockupCfg={mockupCfg} saveMockup={saveMockup} showMockup={showMockup} setShowMockup={setShowMockup} bgImgInputRef={bgImgInputRef} handleBgImgUpload={handleBgImgUpload} applyAndPreview={applyAndPreview} mockupBase64={mockupBase64}/>
             ) : null}
           </div>
           {showBrand && activeTab === 'preview' && <BrandPanel/>}
