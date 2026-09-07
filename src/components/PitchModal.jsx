@@ -539,16 +539,22 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [mockupCfg, setMockupCfg] = useState(() => {
     if (initialDraft?.mockupCfg) {
       const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
-      // Restore bgImage from localStorage if it was saved there
       const savedBg = localStorage.getItem('kt_bgimg_' + initialDraft.id)
       if (savedBg) cfg.bgImage = savedBg
+      const savedNavLogo = localStorage.getItem('kt_navlogo_' + initialDraft.id)
+      if (savedNavLogo) cfg.navLogoImg = savedNavLogo
       return cfg
     }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
     catch { return DEFAULT_MOCKUP }
   })
   const [brand, setBrand] = useState(() => {
-    if (initialDraft?.brand) return { ...DEFAULT_BRAND, ...initialDraft.brand }
+    if (initialDraft?.brand) {
+      const b = { ...DEFAULT_BRAND, ...initialDraft.brand }
+      const savedLogo = localStorage.getItem('kt_brandlogo_' + initialDraft.id)
+      if (savedLogo) b.logo = savedLogo
+      return b
+    }
     try { return { ...DEFAULT_BRAND, ...JSON.parse(localStorage.getItem('kt_brand') || '{}') } }
     catch { return DEFAULT_BRAND }
   })
@@ -622,12 +628,20 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
 
   async function handleSaveDraft() {
     setSaving(true)
-    // Save bgImage to localStorage keyed by draftId (too large for MongoDB)
+    // Save large base64 assets to localStorage, strip from MongoDB payload
     if (mockupCfg.bgImage) {
       try { localStorage.setItem('kt_bgimg_' + draftId, mockupCfg.bgImage) } catch(e) {}
     }
-    const safeMockupCfg = { ...mockupCfg, bgImage: null } // strip from MongoDB
-    const safeHtml = htmlContent.replace(/src="data:image\/png;base64,[^"]+"/g, 'src=""')
+    if (mockupCfg.navLogoImg) {
+      try { localStorage.setItem('kt_navlogo_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
+    }
+    // Also strip brand logo if very large (AI-generated logos)
+    const safeLogo = brand.logo && brand.logo.length > 100000 ? null : brand.logo
+    if (brand.logo && !safeLogo) {
+      try { localStorage.setItem('kt_brandlogo_' + draftId, brand.logo) } catch(e) {}
+    }
+    const safeMockupCfg = { ...mockupCfg, bgImage: null, navLogoImg: null }
+    const safeHtml = htmlContent.replace(/src="data:image\/[^;]+;base64,[^"]+"/g, 'src=""')
     const draft = {
       id: draftId,
       savedAt: Date.now(),
@@ -635,7 +649,7 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
       lead,
       pitch,
       htmlContent: safeHtml,
-      brand,
+      brand: { ...brand, logo: safeLogo },
       mockupCfg: safeMockupCfg,
       showMockup,
       hasMockup: showMockup,
