@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
-// Generate or retrieve a persistent userId stored in localStorage
+// In-memory cache so drafts don't reload every open
+let _cache = null
+let _cacheTime = 0
+const CACHE_TTL = 30000 // 30 seconds
+
 export function getUserId() {
   let id = localStorage.getItem('kt_user_id')
   if (!id) {
@@ -22,6 +26,8 @@ export async function saveDraft(draft) {
     body: JSON.stringify({ ...draft, userId }),
   })
   if (!res.ok) throw new Error('Failed to save draft')
+  // Invalidate cache so next open reloads
+  _cache = null
   window.dispatchEvent(new CustomEvent('kt_draft_saved'))
   return res.json()
 }
@@ -30,15 +36,20 @@ export async function deleteDraftApi(id) {
   const userId = getUserId()
   const res = await fetch(`/api/drafts?userId=${userId}&draftId=${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete draft')
+  _cache = null
   return res.json()
 }
 
-export async function loadDrafts() {
+export async function loadDrafts(force = false) {
+  // Return cache if fresh and not forced
+  if (!force && _cache && Date.now() - _cacheTime < CACHE_TTL) return _cache
   const userId = getUserId()
   const res = await fetch(`/api/drafts?userId=${userId}`)
   if (!res.ok) throw new Error('Failed to load drafts')
   const data = await res.json()
-  return data.drafts || []
+  _cache = data.drafts || []
+  _cacheTime = Date.now()
+  return _cache
 }
 
 const TEMP_COLORS = {
@@ -47,9 +58,16 @@ const TEMP_COLORS = {
   cold: { background: 'rgba(138,148,164,0.1)', color: '#8892A4', border: '1px solid rgba(138,148,164,0.2)' },
 }
 
+function fmt(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
+}
+
 export default function DraftsPanel({ onOpenDraft, onClose }) {
-  const [drafts, setDrafts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [drafts, setDrafts] = useState(_cache || [])
+  const [loading, setLoading] = useState(!_cache)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [copied, setCopied] = useState(null)
@@ -57,16 +75,23 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
   const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
-    fetchDrafts()
-    const onSaved = () => fetchDrafts()
+    fetchDrafts(false)
+    const onSaved = () => fetchDrafts(true)
     window.addEventListener('kt_draft_saved', onSaved)
     return () => window.removeEventListener('kt_draft_saved', onSaved)
   }, [])
 
-  async function fetchDrafts() {
+  async function fetchDrafts(force = false) {
+    // If cache is fresh and not forced, just show cache
+    if (!force && _cache && Date.now() - _cacheTime < CACHE_TTL) {
+      setDrafts(_cache)
+      setLoading(false)
+      return
+    }
     try {
       setError('')
-      const data = await loadDrafts()
+      if (!_cache) setLoading(true)
+      const data = await loadDrafts(force)
       setDrafts(data)
     } catch (e) {
       setError('Could not load drafts: ' + e.message)
@@ -80,7 +105,9 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
       setDeleting(id)
       try {
         await deleteDraftApi(id)
-        setDrafts(prev => prev.filter(d => d.id !== id))
+        const updated = drafts.filter(d => d.id !== id)
+        setDrafts(updated)
+        _cache = updated
       } catch (e) {
         setError('Delete failed: ' + e.message)
       } finally {
@@ -106,12 +133,6 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
     d.pitch?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const fmt = (ts) => {
-    const d = new Date(ts)
-    return d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' +
-      d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
-  }
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 900, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
@@ -125,7 +146,8 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={fetchDrafts} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, fontSize: 11, padding: '5px 12px', cursor: 'pointer' }}>
+            <button onClick={() => fetchDrafts(true)}
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, fontSize: 11, padding: '5px 12px', cursor: 'pointer' }}>
               ↺ Refresh
             </button>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 0 }}>✕</button>
@@ -134,11 +156,9 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
 
         {/* Search */}
         <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)' }}>
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
+          <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by business name or pitch content…"
-            style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, padding: '9px 14px', outline: 'none' }}
-          />
+            style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, padding: '9px 14px', outline: 'none' }} />
         </div>
 
         {/* Content */}
@@ -159,19 +179,14 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
           ) : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)', fontSize: 13 }}>
               {drafts.length === 0 ? (
-                <>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
-                  <div>No drafts yet.</div>
-                  <div style={{ fontSize: 11, marginTop: 6 }}>Save a pitch from the lead scanner to see it here.</div>
-                </>
-              ) : (
-                <div>No drafts match "{search}"</div>
-              )}
+                <><div style={{ fontSize: 32, marginBottom: 12 }}>📭</div><div>No drafts yet.</div><div style={{ fontSize: 11, marginTop: 6 }}>Save a pitch from the lead scanner to see it here.</div></>
+              ) : <div>No drafts match "{search}"</div>}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filtered.map(draft => {
                 const tc = TEMP_COLORS[draft.lead?.temp] || TEMP_COLORS.cold
+                const isUpdated = draft.updatedAt && draft.updatedAt !== draft.savedAt
                 return (
                   <div key={draft.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start', borderLeft: `3px solid ${tc.color}` }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -180,12 +195,14 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
                         <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, ...tc }}>
                           {draft.lead?.temp === 'hot' ? '🔥 Hot' : draft.lead?.temp === 'warm' ? '◈ Warm' : '· Cold'}
                         </span>
-                        {draft.hasMockup && (
-                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: 'rgba(0,212,255,0.1)', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.25)' }}>🖥 Mockup</span>
-                        )}
+                        {draft.hasMockup && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: 'rgba(0,212,255,0.1)', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.25)' }}>🖥 Mockup</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-                        📍 {draft.lead?.address} · {fmt(draft.savedAt)}
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                        📍 {draft.lead?.address}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <span>🕐 Created: {fmt(draft.savedAt)}</span>
+                        {isUpdated && <span style={{ color: 'var(--cyan)' }}>✏️ Updated: {fmt(draft.updatedAt)}</span>}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                         {draft.pitch?.slice(0, 160)}…
@@ -212,10 +229,18 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
           )}
         </div>
 
-        {/* Footer */}
         {!loading && drafts.length > 0 && (
           <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>☁️ Drafts synced to MongoDB · accessible from any device</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>☁️ Synced to MongoDB · accessible from any device</div>
+            <button onClick={async () => {
+              if (window.confirm(`Delete all ${drafts.length} drafts? This cannot be undone.`)) {
+                for (const d of drafts) await deleteDraftApi(d.id).catch(() => {})
+                setDrafts([])
+                _cache = []
+              }
+            }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, fontSize: 11, padding: '5px 12px', cursor: 'pointer' }}>
+              🗑 Clear all
+            </button>
           </div>
         )}
       </div>

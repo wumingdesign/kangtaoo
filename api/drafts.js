@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       if (!draft?.id) return res.status(400).json({ error: 'draft.id required' })
       await col.updateOne(
         { id: draft.id, userId },
-        { $set: { ...draft, userId, updatedAt: Date.now() } },
+        { $set: { ...draft, userId, updatedAt: Date.now() }, $setOnInsert: { savedAt: draft.savedAt || Date.now() } },
         { upsert: true }
       )
       return res.status(200).json({ ok: true })

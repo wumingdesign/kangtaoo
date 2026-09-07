@@ -441,7 +441,13 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [showMockup, setShowMockup] = useState(initialDraft ? initialDraft.showMockup : true)
   const [mockupBase64, setMockupBase64] = useState('')
   const [mockupCfg, setMockupCfg] = useState(() => {
-    if (initialDraft?.mockupCfg) return { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
+    if (initialDraft?.mockupCfg) {
+      const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
+      // Restore bgImage from localStorage if it was saved there
+      const savedBg = localStorage.getItem('kt_bgimg_' + initialDraft.id)
+      if (savedBg) cfg.bgImage = savedBg
+      return cfg
+    }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
     catch { return DEFAULT_MOCKUP }
   })
@@ -451,7 +457,8 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     catch { return DEFAULT_BRAND }
   })
   const [copied, setCopied] = useState(false)
-  const [draftId] = useState(() => createDraftId())
+  // Use lead-based ID so same lead always updates the same draft
+  const [draftId] = useState(() => `draft_lead_${(lead?.name||'').replace(/[^a-z0-9]/gi,'_').toLowerCase()}_${(lead?.address||'').slice(0,20).replace(/[^a-z0-9]/gi,'_').toLowerCase()}`)
   const [savedDraft, setSavedDraft] = useState(false)
   const logoInputRef = useRef(null)
   const bgImgInputRef = useRef(null)
@@ -499,14 +506,16 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   }
 
   async function handleSaveDraft() {
-    // Strip base64 images from brand/mockup to stay under localStorage 5MB limit
-    // mockupBase64 and bgImage are regenerated on open; logo is kept as it's user-uploaded
-    const safeMockupCfg = { ...mockupCfg, bgImage: null } // bg image too large, strip it
-    // Build HTML without the base64 mockup image for storage
+    // Save bgImage to localStorage keyed by draftId (too large for MongoDB)
+    if (mockupCfg.bgImage) {
+      try { localStorage.setItem('kt_bgimg_' + draftId, mockupCfg.bgImage) } catch(e) {}
+    }
+    const safeMockupCfg = { ...mockupCfg, bgImage: null } // strip from MongoDB
     const safeHtml = htmlContent.replace(/src="data:image\/png;base64,[^"]+"/g, 'src=""')
     const draft = {
       id: draftId,
       savedAt: Date.now(),
+      updatedAt: Date.now(),
       lead,
       pitch,
       htmlContent: safeHtml,
