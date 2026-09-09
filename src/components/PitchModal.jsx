@@ -448,10 +448,14 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [mockupCfg, setMockupCfg] = useState(() => {
     if (initialDraft?.mockupCfg) {
       const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
-      // Blob URLs are already in cfg.bgImage / cfg.navLogoImg if upload succeeded
-      // Fall back to localStorage for images uploaded before Blob was set up
-      if (!cfg.bgImage) try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
-      if (!cfg.navLogoImg) try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
+      // Blob URLs (http) are already in cfg — use them directly
+      // Fall back to localStorage if no Blob URL
+      if (!cfg.bgImage || !cfg.bgImage.startsWith('http')) {
+        try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
+      }
+      if (!cfg.navLogoImg || !cfg.navLogoImg.startsWith('http')) {
+        try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
+      }
       return cfg
     }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
@@ -460,8 +464,9 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [brand, setBrand] = useState(() => {
     if (initialDraft?.brand) {
       const b = { ...DEFAULT_BRAND, ...initialDraft.brand }
-      // Blob URL already in b.logo if upload succeeded, else check localStorage
-      if (!b.logo) try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
+      if (!b.logo || !b.logo.startsWith('http')) {
+        try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
+      }
       return b
     }
     try { return { ...DEFAULT_BRAND, ...JSON.parse(localStorage.getItem('kt_brand') || '{}') } }
@@ -561,15 +566,48 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     }
   }
 
+  async function uploadToBlob(base64Data, name) {
+    if (!base64Data || !base64Data.startsWith('data:')) return null
+    try {
+      const res = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: base64Data, filename: `kangtaoo/${draftId}/${name}` }),
+      })
+      const data = await res.json()
+      if (data.fallback || !res.ok) return null
+      return data.url || null
+    } catch { return null }
+  }
+
+  function resolveImageUrl(url) {
+    // If it's a private blob URL, route through our serve-image proxy
+    if (url && url.includes('vercel-storage.com') && !url.startsWith('https://public')) {
+      return `/api/serve-image?url=${encodeURIComponent(url)}`
+    }
+    return url
+  }
+
   async function handleSaveDraft() {
     setSaving(true)
     try {
-      // Save images to localStorage first (always works)
+      // Upload images to Blob for cross-device access
+      const [bgUrl, navLogoUrl, logoUrl] = await Promise.all([
+        uploadToBlob(mockupCfg.bgImage?.startsWith('data:') ? mockupCfg.bgImage : null, 'bg.jpg'),
+        uploadToBlob(mockupCfg.navLogoImg?.startsWith('data:') ? mockupCfg.navLogoImg : null, 'navlogo.png'),
+        uploadToBlob(brand.logo?.startsWith('data:') ? brand.logo : null, 'logo.png'),
+      ])
+
+      // Also save to localStorage as fallback
       if (mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
       if (mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
       if (brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
 
-      // Build MongoDB payload — NEVER include base64 data
+      // Use Blob URL if uploaded, keep existing URL if already a URL, else null
+      const finalBg = bgUrl || (mockupCfg.bgImage?.startsWith('http') ? mockupCfg.bgImage : null)
+      const finalNavLogo = navLogoUrl || (mockupCfg.navLogoImg?.startsWith('http') ? mockupCfg.navLogoImg : null)
+      const finalLogo = logoUrl || (brand.logo?.startsWith('http') ? brand.logo : null)
+
       const draft = {
         id: draftId,
         savedAt: Date.now(),
@@ -582,13 +620,12 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
         },
         pitch,
         htmlContent: '',
-        brand: { ...brand, logo: null },
-        mockupCfg: { ...mockupCfg, bgImage: null, navLogoImg: null },
+        brand: { ...brand, logo: finalLogo },
+        mockupCfg: { ...mockupCfg, bgImage: finalBg, navLogoImg: finalNavLogo },
         showMockup,
         hasMockup: showMockup,
       }
 
-      // Save to MongoDB
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)
