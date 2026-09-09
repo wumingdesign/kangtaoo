@@ -62,31 +62,41 @@ export default async function handler(req, res) {
       const draft = req.body
       if (!draft?.id) return res.status(400).json({ error: 'draft.id required' })
 
-      // Strip any base64 that slipped through (safety net)
-      const safe = { ...draft }
-      if (safe.mockupCfg) {
-        const bg = safe.mockupCfg.bgImage
-        const nl = safe.mockupCfg.navLogoImg
-        safe.mockupCfg = {
-          ...safe.mockupCfg,
-          bgImage: bg?.startsWith('http') ? bg : null,
-          navLogoImg: nl?.startsWith('http') ? nl : null,
+      console.log('Saving draft id:', draft.id, 'userId:', userId)
+
+      // Deep clean — remove any base64, undefined, or problematic values
+      function deepClean(obj) {
+        if (obj === null || obj === undefined) return null
+        if (typeof obj === 'string') {
+          // Strip base64 data URLs
+          if (obj.startsWith('data:')) return null
+          return obj
         }
+        if (Array.isArray(obj)) return obj.map(deepClean)
+        if (typeof obj === 'object') {
+          const clean = {}
+          for (const [k, v] of Object.entries(obj)) {
+            const cleaned = deepClean(v)
+            if (cleaned !== undefined) clean[k] = cleaned
+          }
+          return clean
+        }
+        return obj
       }
-      if (safe.brand) {
-        const logo = safe.brand.logo
-        safe.brand = { ...safe.brand, logo: logo?.startsWith('http') ? logo : null }
-      }
-      safe.htmlContent = ''
+
+      const safe = deepClean({ ...draft, htmlContent: '', userId })
+
+      console.log('Safe draft size:', JSON.stringify(safe).length, 'bytes')
 
       await col.updateOne(
         { id: safe.id, userId },
         {
-          $set: { ...safe, userId, updatedAt: Date.now() },
+          $set: { ...safe, updatedAt: Date.now() },
           $setOnInsert: { savedAt: safe.savedAt || Date.now() }
         },
         { upsert: true }
       )
+      console.log('Draft saved successfully:', draft.id)
       return res.status(200).json({ ok: true })
     }
 

@@ -1,3 +1,4 @@
+import React from 'react'
 import React, { useState, useEffect, useRef } from 'react'
 
 // In-memory cache so drafts don't reload every open
@@ -25,7 +26,10 @@ export async function saveDraft(draft) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...draft, userId }),
   })
-  if (!res.ok) throw new Error('Failed to save draft')
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}))
+    throw new Error(errData.error || `Server error ${res.status}`)
+  }
   // Invalidate cache so next open reloads
   _cache = null
   window.dispatchEvent(new CustomEvent('kt_draft_saved'))
@@ -41,7 +45,6 @@ export async function deleteDraftApi(id) {
 }
 
 export async function loadDrafts(force = false) {
-  // Return cache if fresh and not forced
   if (!force && _cache && Date.now() - _cacheTime < CACHE_TTL) return _cache
   const userId = getUserId()
   const res = await fetch(`/api/drafts?userId=${userId}`)
@@ -50,6 +53,15 @@ export async function loadDrafts(force = false) {
   _cache = data.drafts || []
   _cacheTime = Date.now()
   return _cache
+}
+
+// Load a single draft with full image data
+export async function loadFullDraft(draftId) {
+  const userId = getUserId()
+  const res = await fetch(`/api/drafts?userId=${userId}&draftId=${draftId}`)
+  if (!res.ok) throw new Error('Failed to load draft')
+  const data = await res.json()
+  return data.draft
 }
 
 const TEMP_COLORS = {
@@ -63,6 +75,31 @@ function fmt(ts) {
   const d = new Date(ts)
   return d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) +
     ' · ' + d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
+}
+
+function OpenDraftButton({ draft, onOpenDraft }) {
+  const [loading, setLoading] = React.useState(false)
+
+  async function handleOpen() {
+    setLoading(true)
+    try {
+      // Load full draft with images from MongoDB
+      const full = await loadFullDraft(draft.id)
+      onOpenDraft(full || draft)
+    } catch(e) {
+      // Fallback to list version if full load fails
+      onOpenDraft(draft)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button onClick={handleOpen} disabled={loading}
+      style={{ background: 'var(--cyan)', color: 'var(--bg)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, padding: '7px 14px', cursor: loading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5, opacity: loading ? 0.7 : 1 }}>
+      {loading ? (<><span style={{display:'inline-block',width:10,height:10,border:'2px solid rgba(0,0,0,0.3)',borderTopColor:'var(--bg)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/> Loading…</>) : '✏️ Open & Edit'}
+    </button>
+  )
 }
 
 export default function DraftsPanel({ onOpenDraft, onClose }) {
@@ -209,10 +246,7 @@ export default function DraftsPanel({ onOpenDraft, onClose }) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => onOpenDraft(draft)}
-                        style={{ background: 'var(--cyan)', color: 'var(--bg)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, padding: '7px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        ✏️ Open & Edit
-                      </button>
+                      <OpenDraftButton draft={draft} onOpenDraft={onOpenDraft} />
                       <button onClick={() => copyHtml(draft)}
                         style={{ background: 'transparent', border: '1px solid var(--border)', color: copied === draft.id ? 'var(--green)' : 'var(--muted)', borderRadius: 6, fontSize: 11, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                         {copied === draft.id ? '✓ Copied!' : '📋 Copy HTML'}
