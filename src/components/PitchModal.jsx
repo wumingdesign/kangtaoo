@@ -448,8 +448,9 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [mockupCfg, setMockupCfg] = useState(() => {
     if (initialDraft?.mockupCfg) {
       const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
-      try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
-      try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
+      // If images are localhost URLs (from failed Blob upload), restore from localStorage
+      if (!cfg.bgImage) try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
+      if (!cfg.navLogoImg) try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
       return cfg
     }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
@@ -458,7 +459,7 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [brand, setBrand] = useState(() => {
     if (initialDraft?.brand) {
       const b = { ...DEFAULT_BRAND, ...initialDraft.brand }
-      try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
+      if (!b.logo) try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
       return b
     }
     try { return { ...DEFAULT_BRAND, ...JSON.parse(localStorage.getItem('kt_brand') || '{}') } }
@@ -536,18 +537,42 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     setHtmlContent(buildEmailHTML({ pitch, brand, mockupBase64: showMockup ? b64 : '' }))
   }
 
+  // Upload a base64 image to Vercel Blob, return URL
+  async function uploadImage(base64Data, name) {
+    if (!base64Data) return null
+    try {
+      const res = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: base64Data, filename: `drafts/${draftId}/${name}` }),
+      })
+      const data = await res.json()
+      return data.url || null
+    } catch (e) {
+      console.warn('Image upload failed, using localStorage fallback:', e.message)
+      return null
+    }
+  }
+
   async function handleSaveDraft() {
     setSaving(true)
     try {
-      // Strip large base64 fields — Vercel has 4.5MB request body limit
-      // Images saved separately via localStorage, htmlContent rebuilt on open
-      const cleanMockup = { ...mockupCfg, bgImage: null, navLogoImg: null }
-      const cleanBrand = { ...brand, logo: null }
+      // Upload images to Vercel Blob (returns public URLs)
+      // Falls back to localStorage if upload fails
+      const [bgUrl, navLogoUrl, logoUrl] = await Promise.all([
+        uploadImage(mockupCfg.bgImage, 'bg.png'),
+        uploadImage(mockupCfg.navLogoImg, 'navlogo.png'),
+        uploadImage(brand.logo, 'logo.png'),
+      ])
 
-      // Save images to localStorage (device-local, instant)
-      if (mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
-      if (mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
-      if (brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
+      // localStorage fallback for any that failed
+      if (!bgUrl && mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
+      if (!navLogoUrl && mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
+      if (!logoUrl && brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
+
+      // Store URLs (or null) in draft — never store base64 in MongoDB
+      const cleanMockup = { ...mockupCfg, bgImage: bgUrl, navLogoImg: navLogoUrl }
+      const cleanBrand = { ...brand, logo: logoUrl }
 
       const draft = {
         id: draftId,
@@ -555,12 +580,13 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
         updatedAt: Date.now(),
         lead,
         pitch,
-        htmlContent: '',   // rebuilt on open
+        htmlContent: '',
         brand: cleanBrand,
         mockupCfg: cleanMockup,
         showMockup,
         hasMockup: showMockup,
       }
+
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)
