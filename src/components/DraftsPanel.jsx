@@ -6,12 +6,28 @@ let _cacheTime = 0
 const CACHE_TTL = 30000 // 30 seconds
 
 export function getUserId() {
+  // Use authenticated userId from JWT if available
+  const token = localStorage.getItem('kt_token')
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      if (payload.userId) return payload.userId
+    } catch(e) {}
+  }
+  // Fallback to anonymous userId for unauthenticated use
   let id = localStorage.getItem('kt_user_id')
   if (!id) {
     id = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9)
     localStorage.setItem('kt_user_id', id)
   }
   return id
+}
+
+export function getAuthHeaders() {
+  const token = localStorage.getItem('kt_token')
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
 }
 
 export function createDraftId() {
@@ -22,7 +38,7 @@ export async function saveDraft(draft) {
   const userId = getUserId()
   const res = await fetch(`/api/drafts?userId=${userId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ ...draft, userId }),
   })
   if (!res.ok) {
@@ -37,7 +53,7 @@ export async function saveDraft(draft) {
 
 export async function deleteDraftApi(id) {
   const userId = getUserId()
-  const res = await fetch(`/api/drafts?userId=${userId}&draftId=${id}`, { method: 'DELETE' })
+  const res = await fetch(`/api/drafts?userId=${userId}&draftId=${id}`, { method: 'DELETE', headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Failed to delete draft')
   _cache = null
   return res.json()
@@ -46,7 +62,7 @@ export async function deleteDraftApi(id) {
 export async function loadDrafts(force = false) {
   if (!force && _cache && Date.now() - _cacheTime < CACHE_TTL) return _cache
   const userId = getUserId()
-  const res = await fetch(`/api/drafts?userId=${userId}`)
+  const res = await fetch(`/api/drafts?userId=${userId}`, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Failed to load drafts')
   const data = await res.json()
   _cache = data.drafts || []
@@ -57,7 +73,7 @@ export async function loadDrafts(force = false) {
 // Load a single draft with full image data
 export async function loadFullDraft(draftId) {
   const userId = getUserId()
-  const res = await fetch(`/api/drafts?userId=${userId}&draftId=${draftId}`)
+  const res = await fetch(`/api/drafts?userId=${userId}&draftId=${draftId}`, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Failed to load draft')
   const data = await res.json()
   return data.draft

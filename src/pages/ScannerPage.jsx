@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import LeadCard from '../components/LeadCard'
 import DraftsPanel from '../components/DraftsPanel'
+import { useAuth } from '../components/AuthProvider'
 import PitchModal from '../components/PitchModal'
 import Pagination from '../components/Pagination'
 
@@ -70,6 +71,7 @@ export default function ScannerPage({ onBack }) {
   const [skipped, setSkipped] = useState({})
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useState('grid')
+  const { user, logout } = useAuth()
   const [modal, setModal] = useState(null)
   const [showDrafts, setShowDrafts] = useState(false)
   const [draftToOpen, setDraftToOpen] = useState(null)
@@ -239,6 +241,13 @@ export default function ScannerPage({ onBack }) {
           <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.4)', padding: '3px 10px', borderRadius: 3 }}>
             Lead Scanner · Beta
           </div>
+          {user && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, padding:'5px 12px' }}>
+              {user.picture && <img src={user.picture} alt="" style={{ width:22, height:22, borderRadius:'50%', objectFit:'cover' }}/>}
+              <span style={{ fontSize:11, color:'var(--muted)', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.name || user.email}</span>
+              <button onClick={logout} style={{ background:'transparent', border:'none', color:'var(--red)', fontSize:10, cursor:'pointer', padding:0 }}>Logout</button>
+            </div>
+          )}
         </div>
       </nav>
 

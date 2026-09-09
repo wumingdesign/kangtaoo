@@ -6,6 +6,7 @@ const S = {
   logo: { fontFamily: 'monospace', fontWeight: 700, fontSize: 20 },
   navRight: { display: 'flex', alignItems: 'center', gap: 12 },
   tag: { fontFamily: 'monospace', fontSize: 11, color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.4)', padding: '3px 10px', borderRadius: 3 },
+  btnOutline: { background: 'transparent', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.4)', borderRadius: 8, fontSize: 13, fontWeight: 600, padding: '9px 20px', cursor: 'pointer' },
   hero: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '80px 24px 60px' },
   eyebrow: { fontFamily: 'monospace', fontSize: 11, color: 'var(--cyan)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
   eyeLine: { width: 32, height: 1, background: 'var(--cyan)', opacity: 0.4 },
@@ -39,7 +40,8 @@ export default function LandingPage({ onStart }) {
         <div style={S.logo}>Kang<span style={{ color: 'var(--cyan)' }}>Taoo</span></div>
         <div style={S.navRight}>
           <div style={S.tag}>Beta v1.0</div>
-          <button style={S.btnPrimary} onClick={onStart}>Launch App →</button>
+          <button style={S.btnOutline} onClick={onStart}>Sign In</button>
+          <button style={S.btnPrimary} onClick={onStart}>Get Started →</button>
         </div>
       </nav>
 
