@@ -564,19 +564,12 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   async function handleSaveDraft() {
     setSaving(true)
     try {
-      // Try Blob upload — always falls back to localStorage if it fails
-      const [bgUrl, navLogoUrl, logoUrl] = await Promise.all([
-        uploadToBlob(mockupCfg.bgImage, 'bg.jpg'),
-        uploadToBlob(mockupCfg.navLogoImg, 'navlogo.png'),
-        uploadToBlob(brand.logo, 'logo.png'),
-      ])
-
-      // Always save to localStorage as backup regardless of Blob result
+      // Save images to localStorage first (always works)
       if (mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
       if (mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
       if (brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
 
-      // Save to MongoDB — strip ALL base64, store only Blob URLs (or null)
+      // Build MongoDB payload — NEVER include base64 data
       const draft = {
         id: draftId,
         savedAt: Date.now(),
@@ -589,13 +582,13 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
         },
         pitch,
         htmlContent: '',
-        brand: { ...brand, logo: logoUrl || null },
-        mockupCfg: { ...mockupCfg, bgImage: bgUrl || null, navLogoImg: navLogoUrl || null },
+        brand: { ...brand, logo: null },
+        mockupCfg: { ...mockupCfg, bgImage: null, navLogoImg: null },
         showMockup,
         hasMockup: showMockup,
       }
 
-      console.log('Saving draft, payload size:', JSON.stringify(draft).length, 'bytes')
+      // Save to MongoDB
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)
