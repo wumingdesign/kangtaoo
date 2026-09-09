@@ -552,11 +552,12 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
         }),
       })
       const data = await res.json()
+      console.log('Blob upload result:', name, res.status, data)
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       return data.url || null
     } catch (e) {
-      console.warn('Blob upload failed:', e.message)
-      return null
+      console.warn('Blob upload failed for', name, ':', e.message)
+      return null  // graceful fallback
     }
   }
 
@@ -593,11 +594,13 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
         hasMockup: showMockup,
       }
 
+      console.log('Saving draft to MongoDB, size:', JSON.stringify(draft).length, 'bytes')
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)
     } catch(e) {
-      alert('Could not save draft: ' + e.message)
+      console.error('Save draft error:', e)
+      alert('Save failed: ' + e.message + '\n\nCheck browser console for details.')
     } finally {
       setSaving(false)
     }
