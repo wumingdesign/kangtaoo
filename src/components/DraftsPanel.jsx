@@ -1,4 +1,3 @@
-import React from 'react'
 import React, { useState, useEffect, useRef } from 'react'
 
 // In-memory cache so drafts don't reload every open
