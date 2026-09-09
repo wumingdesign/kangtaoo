@@ -448,7 +448,8 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [mockupCfg, setMockupCfg] = useState(() => {
     if (initialDraft?.mockupCfg) {
       const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
-      // If images are localhost URLs (from failed Blob upload), restore from localStorage
+      // Blob URLs are already in cfg.bgImage / cfg.navLogoImg if upload succeeded
+      // Fall back to localStorage for images uploaded before Blob was set up
       if (!cfg.bgImage) try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
       if (!cfg.navLogoImg) try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
       return cfg
@@ -459,6 +460,7 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [brand, setBrand] = useState(() => {
     if (initialDraft?.brand) {
       const b = { ...DEFAULT_BRAND, ...initialDraft.brand }
+      // Blob URL already in b.logo if upload succeeded, else check localStorage
       if (!b.logo) try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
       return b
     }
@@ -537,19 +539,23 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
     setHtmlContent(buildEmailHTML({ pitch, brand, mockupBase64: showMockup ? b64 : '' }))
   }
 
-  // Upload a base64 image to Vercel Blob, return URL
-  async function uploadImage(base64Data, name) {
-    if (!base64Data) return null
+  // Upload base64 image to Vercel Blob, return public URL
+  async function uploadToBlob(base64Data, name) {
+    if (!base64Data || !base64Data.startsWith('data:')) return null
     try {
       const res = await fetch('/api/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageData: base64Data, filename: `drafts/${draftId}/${name}` }),
+        body: JSON.stringify({
+          imageData: base64Data,
+          filename: `kangtaoo/${draftId}/${name}`,
+        }),
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
       return data.url || null
     } catch (e) {
-      console.warn('Image upload failed, using localStorage fallback:', e.message)
+      console.warn('Blob upload failed:', e.message)
       return null
     }
   }
@@ -557,32 +563,32 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   async function handleSaveDraft() {
     setSaving(true)
     try {
-      // Upload images to Vercel Blob (returns public URLs)
-      // Falls back to localStorage if upload fails
+      // Upload images to Vercel Blob in parallel
       const [bgUrl, navLogoUrl, logoUrl] = await Promise.all([
-        uploadImage(mockupCfg.bgImage, 'bg.png'),
-        uploadImage(mockupCfg.navLogoImg, 'navlogo.png'),
-        uploadImage(brand.logo, 'logo.png'),
+        uploadToBlob(mockupCfg.bgImage, 'bg.jpg'),
+        uploadToBlob(mockupCfg.navLogoImg, 'navlogo.png'),
+        uploadToBlob(brand.logo, 'logo.png'),
       ])
 
-      // localStorage fallback for any that failed
+      // Blob URLs stored in MongoDB, localStorage as fallback if upload failed
       if (!bgUrl && mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
       if (!navLogoUrl && mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
       if (!logoUrl && brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
-
-      // Store URLs (or null) in draft — never store base64 in MongoDB
-      const cleanMockup = { ...mockupCfg, bgImage: bgUrl, navLogoImg: navLogoUrl }
-      const cleanBrand = { ...brand, logo: logoUrl }
 
       const draft = {
         id: draftId,
         savedAt: Date.now(),
         updatedAt: Date.now(),
-        lead,
+        lead: {
+          name: lead.name, type: lead.type, address: lead.address,
+          phone: lead.phone, website: lead.website, temp: lead.temp,
+          sigs: lead.sigs, rating: lead.rating, reviews: lead.reviews,
+          hook: lead.hook, pid: lead.pid, mapsUrl: lead.mapsUrl, idx: lead.idx,
+        },
         pitch,
         htmlContent: '',
-        brand: cleanBrand,
-        mockupCfg: cleanMockup,
+        brand: { ...brand, logo: logoUrl },
+        mockupCfg: { ...mockupCfg, bgImage: bgUrl, navLogoImg: navLogoUrl },
         showMockup,
         hasMockup: showMockup,
       }

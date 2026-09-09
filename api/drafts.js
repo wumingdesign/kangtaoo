@@ -1,6 +1,10 @@
 // api/drafts.js — MongoDB draft storage (stores everything including images)
 import { MongoClient } from 'mongodb'
 
+export const config = {
+  api: { bodyParser: { sizeLimit: '2mb' } }
+}
+
 const uri = process.env.MONGODB_URI
 let client, db
 
