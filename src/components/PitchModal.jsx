@@ -164,12 +164,12 @@ async function renderMockupToBase64(lead, mockupCfg, brand) {
 
     function drawHeroContent() {
       const startY = 130
-      ctx.fillStyle = headlineColor; ctx.font = `bold 26px ${cfg.heroFont}`; ctx.textAlign = 'left'
-      ctx.fillText(cfg.headline.slice(0, 28), 36, startY)
-      ctx.fillStyle = subColor; ctx.font = `bold 22px ${cfg.heroFont}`
-      ctx.fillText(cfg.subheadline.slice(0, 30), 36, startY + 32)
-      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `12px ${cfg.heroFont}`
-      ctx.fillText(cfg.tagline.slice(0, 50), 36, startY + 58)
+      ctx.fillStyle = headlineColor; ctx.font = `bold 20px ${cfg.heroFont}`; ctx.textAlign = 'left'
+      ctx.fillText(cfg.headline.slice(0, 38), 36, startY)
+      ctx.fillStyle = subColor; ctx.font = `bold 17px ${cfg.heroFont}`
+      ctx.fillText(cfg.subheadline.slice(0, 42), 36, startY + 28)
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `11px ${cfg.heroFont}`
+      ctx.fillText(cfg.tagline.slice(0, 65), 36, startY + 52)
       // CTA buttons
       ctx.fillStyle = accentColor; ctx.beginPath()
       ctx.roundRect(36, startY + 76, 150, 32, 5); ctx.fill()
@@ -448,10 +448,8 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [mockupCfg, setMockupCfg] = useState(() => {
     if (initialDraft?.mockupCfg) {
       const cfg = { ...DEFAULT_MOCKUP, ...initialDraft.mockupCfg }
-      const savedBg = localStorage.getItem('kt_bgimg_' + initialDraft.id)
-      if (savedBg) cfg.bgImage = savedBg
-      const savedNavLogo = localStorage.getItem('kt_navlogo_' + initialDraft.id)
-      if (savedNavLogo) cfg.navLogoImg = savedNavLogo
+      try { const bg = localStorage.getItem('kt_bg_' + initialDraft.id); if (bg) cfg.bgImage = bg } catch(e) {}
+      try { const nl = localStorage.getItem('kt_nl_' + initialDraft.id); if (nl) cfg.navLogoImg = nl } catch(e) {}
       return cfg
     }
     try { return { ...DEFAULT_MOCKUP, ...JSON.parse(localStorage.getItem('kt_mockup') || '{}') } }
@@ -460,8 +458,7 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [brand, setBrand] = useState(() => {
     if (initialDraft?.brand) {
       const b = { ...DEFAULT_BRAND, ...initialDraft.brand }
-      const savedLogo = localStorage.getItem('kt_brandlogo_' + initialDraft.id)
-      if (savedLogo) b.logo = savedLogo
+      try { const bl = localStorage.getItem('kt_bl_' + initialDraft.id); if (bl) b.logo = bl } catch(e) {}
       return b
     }
     try { return { ...DEFAULT_BRAND, ...JSON.parse(localStorage.getItem('kt_brand') || '{}') } }
@@ -471,8 +468,12 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   const [customPrompt, setCustomPrompt] = useState('')
   const [useCustomPrompt, setUseCustomPrompt] = useState(false)
   const [saving, setSaving] = useState(false)
-  // Use lead-based ID so same lead always updates the same draft
-  const [draftId] = useState(() => `draft_lead_${(lead?.name||'').replace(/[^a-z0-9]/gi,'_').toLowerCase()}_${(lead?.address||'').slice(0,20).replace(/[^a-z0-9]/gi,'_').toLowerCase()}`)
+  // Include userId + lead so same user+lead always updates same draft, but different users never collide
+  const [draftId] = useState(() => {
+    const uid = getUserId().slice(-8)
+    const leadKey = (lead?.name||'').replace(/[^a-z0-9]/gi,'_').toLowerCase().slice(0,20)
+    return `draft_${uid}_${leadKey}`
+  })
   const [savedDraft, setSavedDraft] = useState(false)
   const logoInputRef = useRef(null)
   const bgImgInputRef = useRef(null)
@@ -538,34 +539,28 @@ export default function PitchModal({ lead, location, onClose, initialDraft }) {
   async function handleSaveDraft() {
     setSaving(true)
     try {
-      // Save all images to localStorage — never send base64 to MongoDB
-      const toLocal = [
-        ['kt_bgimg_', mockupCfg.bgImage],
-        ['kt_navlogo_', mockupCfg.navLogoImg],
-        ['kt_brandlogo_', brand.logo],
-      ]
-      toLocal.forEach(([key, val]) => {
-        if (val) try { localStorage.setItem(key + draftId, val) } catch(e) {}
-      })
-
-      // Strip ALL images from MongoDB payload
+      // Strip large base64 fields — Vercel has 4.5MB request body limit
+      // Images saved separately via localStorage, htmlContent rebuilt on open
       const cleanMockup = { ...mockupCfg, bgImage: null, navLogoImg: null }
       const cleanBrand = { ...brand, logo: null }
 
-      // Don't store htmlContent at all — it's rebuilt on open from pitch+brand+mockup
+      // Save images to localStorage (device-local, instant)
+      if (mockupCfg.bgImage) try { localStorage.setItem('kt_bg_' + draftId, mockupCfg.bgImage) } catch(e) {}
+      if (mockupCfg.navLogoImg) try { localStorage.setItem('kt_nl_' + draftId, mockupCfg.navLogoImg) } catch(e) {}
+      if (brand.logo) try { localStorage.setItem('kt_bl_' + draftId, brand.logo) } catch(e) {}
+
       const draft = {
         id: draftId,
         savedAt: Date.now(),
         updatedAt: Date.now(),
         lead,
         pitch,
-        htmlContent: '',
+        htmlContent: '',   // rebuilt on open
         brand: cleanBrand,
         mockupCfg: cleanMockup,
         showMockup,
         hasMockup: showMockup,
       }
-
       await saveDraft(draft)
       setSavedDraft(true)
       setTimeout(() => setSavedDraft(false), 2500)

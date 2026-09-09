@@ -1,4 +1,4 @@
-// api/drafts.js — MongoDB draft storage
+// api/drafts.js — MongoDB draft storage (stores everything including images)
 import { MongoClient } from 'mongodb'
 
 const uri = process.env.MONGODB_URI
@@ -6,7 +6,10 @@ let client, db
 
 async function getDb() {
   if (!client) {
-    client = new MongoClient(uri)
+    client = new MongoClient(uri, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+    })
     await client.connect()
     db = client.db('kangtaoo')
   }
@@ -26,37 +29,52 @@ export default async function handler(req, res) {
 
     if (!userId) return res.status(400).json({ error: 'userId required' })
 
-    // GET — fetch all drafts for user
+    // GET — fetch all drafts for this user
     if (req.method === 'GET') {
       const drafts = await col
-        .find({ userId })
-        .sort({ savedAt: -1 })
+        .find({ userId }, {
+          projection: {
+            // Exclude large image fields from list view for speed
+            // They are loaded when opening individual draft
+            'mockupCfg.bgImage': 0,
+            'mockupCfg.navLogoImg': 0,
+            'brand.logo': 0,
+            htmlContent: 0,
+          }
+        })
+        .sort({ updatedAt: -1, savedAt: -1 })
         .limit(100)
         .toArray()
       return res.status(200).json({ drafts })
     }
 
-    // POST — save or update draft
+    // POST — save or update a draft
     if (req.method === 'POST') {
       const draft = req.body
       if (!draft?.id) return res.status(400).json({ error: 'draft.id required' })
 
-      // Safety: strip any base64 data that slipped through
+      // Server-side safety: always strip large base64 fields
       const safe = { ...draft }
       if (safe.mockupCfg) safe.mockupCfg = { ...safe.mockupCfg, bgImage: null, navLogoImg: null }
       if (safe.brand) safe.brand = { ...safe.brand, logo: null }
-      safe.htmlContent = '' // always strip — rebuilt on client
-
-      // Check size (MongoDB 16MB limit, we target <100KB per draft)
-      const size = JSON.stringify(safe).length
-      if (size > 500000) return res.status(413).json({ error: 'Draft too large (' + Math.round(size/1024) + 'KB). Images must be uploaded separately.' })
+      safe.htmlContent = ''
 
       await col.updateOne(
         { id: safe.id, userId },
-        { $set: { ...safe, userId, updatedAt: Date.now() }, $setOnInsert: { savedAt: safe.savedAt || Date.now() } },
+        {
+          $set: { ...safe, userId, updatedAt: Date.now() },
+          $setOnInsert: { savedAt: safe.savedAt || Date.now() }
+        },
         { upsert: true }
       )
       return res.status(200).json({ ok: true })
+    }
+
+    // GET single draft with full data (images included)
+    if (req.method === 'GET' && req.query.draftId) {
+      const draft = await col.findOne({ id: req.query.draftId, userId })
+      if (!draft) return res.status(404).json({ error: 'Draft not found' })
+      return res.status(200).json({ draft })
     }
 
     // DELETE — remove a draft

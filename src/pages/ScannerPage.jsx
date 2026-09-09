@@ -104,6 +104,7 @@ export default function ScannerPage({ onBack }) {
         body: JSON.stringify({ query: '', type: 'details', placeId }),
       })
       const data = await res.json()
+      // Places Details returns result inside data.result
       return data.result || null
     } catch { return null }
   }
@@ -134,7 +135,7 @@ export default function ScannerPage({ onBack }) {
       clearInterval(ivRef.current)
       setScanning(false)
 
-      const shaped = results.slice(0, 12).map((p, i) => shapePlace(p, industry, i))
+      const shaped = results.map((p, i) => shapePlace(p, industry, i))
       leadsRef.current = shaped
       setAllLeads([...shaped])
       enrichBatch(shaped)
