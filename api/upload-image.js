@@ -12,20 +12,29 @@ export default async function handler(req, res) {
 
   try {
     const matches = imageData.match(/^data:(image\/\w+);base64,(.+)$/)
-    if (!matches) return res.status(400).json({ error: 'Invalid image data format' })
+    if (!matches) return res.status(400).json({ error: 'Invalid image data' })
 
     const mimeType = matches[1]
     const buffer = Buffer.from(matches[2], 'base64')
+
+    // Check if we have a token — if not, fall back gracefully
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(503).json({ 
+        error: 'BLOB_READ_WRITE_TOKEN not configured',
+        fallback: true 
+      })
+    }
 
     const blob = await put(filename, buffer, {
       access: 'public',
       contentType: mimeType,
       addRandomSuffix: false,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
     return res.status(200).json({ url: blob.url })
   } catch (e) {
     console.error('Blob upload error:', e)
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: e.message, fallback: true })
   }
 }
