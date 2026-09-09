@@ -88,11 +88,12 @@ export default async function handler(req, res) {
 
       console.log('Safe draft size:', JSON.stringify(safe).length, 'bytes')
 
+      const { savedAt, ...safeWithoutSavedAt } = safe
       await col.updateOne(
         { id: safe.id, userId },
         {
-          $set: { ...safe, updatedAt: Date.now() },
-          $setOnInsert: { savedAt: safe.savedAt || Date.now() }
+          $set: { ...safeWithoutSavedAt, updatedAt: Date.now() },
+          $setOnInsert: { savedAt: savedAt || Date.now() }
         },
         { upsert: true }
       )
