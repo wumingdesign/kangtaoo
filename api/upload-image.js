@@ -17,14 +17,12 @@ export default async function handler(req, res) {
     const mimeType = matches[1]
     const buffer = Buffer.from(matches[2], 'base64')
 
-    // Check if we have a token — if not, fall back gracefully
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return res.status(503).json({ 
-        error: 'BLOB_READ_WRITE_TOKEN not configured',
-        fallback: true 
-      })
+      return res.status(503).json({ error: 'BLOB_READ_WRITE_TOKEN not set', fallback: true })
     }
 
+    // Use 'public' if store allows it, otherwise 'private'
+    // For private stores we serve via /api/serve-image instead
     const blob = await put(filename, buffer, {
       access: 'public',
       contentType: mimeType,
@@ -34,6 +32,23 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ url: blob.url })
   } catch (e) {
+    // Private store — try with private access and return a served URL
+    if (e.message?.includes('private store')) {
+      try {
+        const matches = imageData.match(/^data:(image\/\w+);base64,(.+)$/)
+        const buffer = Buffer.from(matches[2], 'base64')
+        const blob = await put(filename, buffer, {
+          access: 'private',
+          contentType: matches[1],
+          addRandomSuffix: false,
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        })
+        // Return the blob URL — private blobs need token to serve
+        return res.status(200).json({ url: blob.url, isPrivate: true })
+      } catch (e2) {
+        return res.status(500).json({ error: e2.message, fallback: true })
+      }
+    }
     console.error('Blob upload error:', e)
     return res.status(500).json({ error: e.message, fallback: true })
   }
