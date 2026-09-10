@@ -24,16 +24,16 @@ export default async function handler(req, res) {
     // Try public first, fall back to private automatically
     let blob
       try {
-        const blob = await put(filename, buffer, {
-          access: 'public',
-          contentType: mimeType,
-          addRandomSuffix: false,
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        })
-        return res.status(200).json({ url: blob.url })
-      } catch (e) {
-        console.error('Blob upload error:', e)
-        return res.status(500).json({ error: e.message })
+          const blob = await put(filename, buffer, {
+            access: 'private',
+            contentType: mimeType,
+            addRandomSuffix: false,
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+          })
+          return res.status(200).json({ url: blob.url })
+        } catch (e) {
+          console.error('Blob upload error:', e)
+          return res.status(500).json({ error: e.message })
       }
     
     // try {
